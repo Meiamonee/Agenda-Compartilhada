@@ -34,7 +34,55 @@ app.post("/eventos", async (req, res) => {
   }
 });
 
-// ... (Resto do código do servico2/index.js)
+
+// Listar eventos
+app.get("/eventos", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM eventos");
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Atualizar evento
+app.put("/eventos/:id", async (req, res) => {
+  const { id } = req.params;
+  const { titulo, descricao, data, hora } = req.body;
+  try {
+    const result = await pool.query(
+      "UPDATE eventos SET titulo=$1, descricao=$2, data=$3, hora=$4 WHERE id=$5 RETURNING *",
+      [titulo, descricao, data, hora, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Evento não encontrado" });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Deletar evento
+app.delete("/eventos/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query(
+      "DELETE FROM eventos WHERE id=$1 RETURNING *",
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Evento não encontrado" });
+    }
+
+    res.json({ message: "Evento deletado com sucesso", evento: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // Rodar servidor
 app.listen(3002, () => console.log("Serviço de eventos rodando na porta 3002"));
