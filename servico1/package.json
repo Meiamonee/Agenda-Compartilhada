@@ -1,15 +1,20 @@
 {
-  "name": "servico1",
+  "name": "agenda-compartilhada",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start:local": "concurrently \"node servico1/index.js\" \"node servico2/index.js\"",
+    "start:servico1": "node servico1/index.js",
+    "start:servico2": "node servico2/index.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "express": "^5.1.0"
+    "axios": "^1.12.2",
+    "concurrently": "^9.2.1",
+    "express": "^5.1.0",
+    "pg": "^8.16.3"
   }
 }
