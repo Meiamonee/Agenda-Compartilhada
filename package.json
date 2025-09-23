@@ -3,7 +3,10 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "start": "concurrently \"node servico1/index.js\" \"node servico2/index.js\""
+    "start:local": "concurrently \"npm run start:servico1\" \"npm run start:servico2\"",
+    "start:servico1": "node servico1/index.js",
+    "start:servico2": "node servico2/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "",
