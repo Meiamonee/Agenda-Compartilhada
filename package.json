@@ -1,0 +1,18 @@
+{
+  "name": "agenda-compartilhada",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "concurrently \"node servico1/index.js\" \"node servico2/index.js\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "axios": "^1.12.2",
+    "concurrently": "^9.2.1",
+    "express": "^5.1.0",
+    "pg": "^8.16.3"
+  }
+}
