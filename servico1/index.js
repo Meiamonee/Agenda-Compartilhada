@@ -1,12 +1,17 @@
 const express = require("express");
 const pool = require("../Banco/db");
+const cors = require("cors");
+const bcrypt = require("bcrypt");
 
 const app = express();
+app.use(cors());
 app.use(express.json());
+const saltRounds = 10;
 
 // =======================
 // Criar usuário
 // =======================
+/* 
 app.post("/usuarios", async (req, res) => {
   const { nome, email, senha } = req.body;
   try {
@@ -19,7 +24,46 @@ app.post("/usuarios", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+*/
+// Endpoint de registro (agora com senha criptografada)
+app.post("/usuarios", async (req, res) => {
+    const { nome, email, senha } = req.body;
+    try {
+        const hashedPassword = await bcrypt.hash(senha, saltRounds);
+        const result = await pool.query(
+            "INSERT INTO usuarios (nome, email, senha) VALUES ($1, $2, $3) RETURNING id, nome, email",
+            [nome, email, hashedPassword]
+        );
+        res.json(result.rows[0]);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: err.message });
+    }
+});
+// Endpoint de login
+app.post("/login", async (req, res) => {
+    const { email, senha } = req.body;
+    try {
+        const user = await pool.query("SELECT * FROM usuarios WHERE email = $1", [email]);
 
+        if (user.rows.length === 0) {
+            return res.status(400).json({ error: "Email ou senha inválidos." });
+        }
+
+        const storedPassword = user.rows[0].senha;
+        const match = await bcrypt.compare(senha, storedPassword);
+
+        if (match) {
+            const { id, nome, email } = user.rows[0];
+            res.status(200).json({ message: "Login bem-sucedido!", user: { id, nome, email } });
+        } else {
+            res.status(400).json({ error: "Email ou senha inválidos." });
+        }
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Erro no servidor." });
+    }
+});
 // =======================
 // Listar todos usuários
 // =======================
