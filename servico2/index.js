@@ -1,10 +1,11 @@
 const express = require("express");
 const pool = require("../Banco/db");
+const cors = require('cors');
 const axios = require("axios");
 const app = express();
 
 app.use(express.json());
-
+app.use(cors());
 // Criar evento com verificação no serviço de usuários
 app.post("/eventos", async (req, res) => {
   const { titulo, descricao, data, hora, usuario_id } = req.body;
