@@ -76,6 +76,8 @@ app.get("/usuarios", async (req, res) => {
   }
 });
 
+
+
 // =======================
 // Buscar usuário por ID
 // =======================
