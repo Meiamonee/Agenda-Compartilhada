@@ -5,7 +5,7 @@ const axios = require("axios");
 const app = express();
 
 app.use(express.json());
-app.use(cors()); // Permite requisições do seu front-end local
+app.use(cors());
 
 // Endpoint para Criar Evento com verificação no serviço de usuários
 app.post("/eventos", async (req, res) => {
@@ -44,7 +44,7 @@ app.post("/eventos/:evento_id/participar", async (req, res) => {
     const { evento_id } = req.params;
     const { usuario_id } = req.body; // Espera que o ID do usuário seja enviado no body
     
-    // NOTA: Em uma aplicação real, aqui você usaria um token de autenticação
+    // NOTA: usar tokem para autenticar no futuro.
     // para obter o usuario_id, mas vamos simplificar o teste.
 
     try {
@@ -67,7 +67,7 @@ app.post("/eventos/:evento_id/participar", async (req, res) => {
     }
 });
 
-// Endpoint NOVO: Listar participantes de um evento
+// Endpoint Listar participantes de um evento
 app.get("/eventos/:evento_id/participantes", async (req, res) => {
     const { evento_id } = req.params;
     try {
