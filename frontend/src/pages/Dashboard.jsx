@@ -1,44 +1,35 @@
-// src/pages/Dashboard.jsx
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import api from "../api/api";
-
 export default function Dashboard() {
-  const [eventos, setEventos] = useState([]);
-  const navigate = useNavigate();
+  // Tenta buscar o objeto de usuário do localStorage.
+  const userString = localStorage.getItem("user");
+  let user = {};
 
-  const user = JSON.parse(localStorage.getItem("user") || "null");
-
-  useEffect(() => {
-    if (!user) return;
-    // lista todos os eventos do serviço 2 e filtra pelo usuario_id
-    (async () => {
-      try {
-        const res = await api.get("/eventos", { baseURL: import.meta.env.VITE_API_URL?.replace("/login","") || undefined });
-        // OBS: se api.baseURL aponta para serviço1, altere para chamar serviço2 diretamente
-        // aqui fazemos uma suposição: VITE_API_URL aponta para serviço1 — então chamamos serviço2 pela URL completa
-      } catch (err) {
-        console.error(err);
-      }
-    })();
-  }, [user]);
-
-  // Simples UI com botão logout
-  const handleLogout = () => {
-    localStorage.removeItem("user");
-    navigate("/");
-  };
+  try {
+    // Tenta fazer o parse do JSON
+    user = userString ? JSON.parse(userString) : {};
+  } catch (error) {
+    // Em caso de erro no parse (JSON malformado), define o usuário como vazio.
+    console.error("Erro ao analisar dados do usuário no localStorage:", error);
+  }
 
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Bem-vindo, {user?.nome}</h1>
-        <button onClick={handleLogout} className="bg-red-500 text-white px-3 py-1 rounded">Sair</button>
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-6">
+      <div className="text-center">
+        <h1 className="text-4xl font-bold mb-2">
+          Bem-vindo, {user.nome || "Usuário"}!
+        </h1>
+        <p className="text-gray-400 mb-6">Esta é a sua área de Dashboard.</p>
+        
+        <div className="bg-gray-800 p-6 rounded-lg shadow-xl w-full max-w-md">
+            <h2 className="text-xl font-semibold mb-4">Informações da Sessão</h2>
+            {/* Exemplo de exibição de outras propriedades do usuário, se existirem */}
+            {user.email && (
+                <p className="text-left text-sm text-gray-300">
+                    <span className="font-medium text-gray-100">Email:</span> {user.email}
+                </p>
+            )}
+            {/* Adicione um botão de logout funcional aqui quando necessário */}
+        </div>
       </div>
-
-      <p>Aqui lista de eventos (implemente a busca a seguir conforme sua arquitetura de serviços).</p>
-
-      {/* TODO: implementar listagem real chamando o serviço de eventos */}
     </div>
   );
 }

@@ -1,7 +1,6 @@
-// src/App.jsx
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
-import Dashboard from "./pages/Dashboard";
+import Dashboard from "./pages/Dashboard"; // Crie este componente
 
 function PrivateRoute({ children }) {
   const user = JSON.parse(localStorage.getItem("user"));
