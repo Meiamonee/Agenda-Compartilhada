@@ -1,6 +1,6 @@
 const express = require("express");
-const cors = require("cors"); // 👈 ADICIONE ESTA LINHA
-const pool = require("./Banco/db");
+const pool = require("./Banco/db"); // Conexão configurada
+const cors = require("cors");
 const bcrypt = require("bcrypt");
 require("dotenv").config(); // 👈 garante que o .env seja lido
 
