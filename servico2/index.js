@@ -1,5 +1,5 @@
 const express = require("express");
-const pool = require("../Banco/db"); // Acesso ao banco de dados compartilhado
+const pool = require("./Banco/db"); // Acesso ao banco de dados compartilhado
 const cors = require('cors');
 const axios = require("axios");
 const app = express();
