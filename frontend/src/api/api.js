@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "https://agenda-compartilhada-1.onrender.com", // 👉 serviço de usuários
+  baseURL: import.meta.env.VITE_API_URL, // 🔄 agora vem do .env
 });
 
 export default api;
