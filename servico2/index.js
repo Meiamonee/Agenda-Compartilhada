@@ -15,6 +15,7 @@ app.post("/eventos", async (req, res) => {
 
     try {
         // 1. Verifica se o usuário existe chamando o serviço1
+        // Nota: É importante garantir que servico1Url esteja configurada no Render.
         const usuarioResponse = await axios.get(`${servico1Url}/usuarios/${usuario_id}`);
         const usuario = usuarioResponse.data;
 
@@ -30,11 +31,17 @@ app.post("/eventos", async (req, res) => {
 
         res.status(201).json(result.rows[0]);
     } catch (err) {
-        if (err.response && err.response.status === 404) {
-            return res.status(400).json({ error: "Usuário não encontrado no Serviço de Usuários (ID inválido)." });
+        // Tratamento de erro mais robusto para chamadas de serviço
+        if (err.response) {
+            if (err.response.status === 404) {
+                return res.status(400).json({ 
+                    error: "Usuário não encontrado no Serviço de Usuários (ID inválido)." 
+                });
+            }
         }
         console.error(err);
-        res.status(500).json({ error: err.message });
+        // Garante que a mensagem de erro seja a mais útil possível
+        res.status(500).json({ error: "Erro interno no servidor ao criar evento." });
     }
 });
 
@@ -44,9 +51,6 @@ app.post("/eventos/:evento_id/participar", async (req, res) => {
     const { evento_id } = req.params;
     const { usuario_id } = req.body; // Espera que o ID do usuário seja enviado no body
     
-    // NOTA: usar tokem para autenticar no futuro.
-    // para obter o usuario_id, mas vamos simplificar o teste.
-
     try {
         // Tenta inserir na tabela participantes
         const result = await pool.query(
@@ -58,12 +62,12 @@ app.post("/eventos/:evento_id/participar", async (req, res) => {
             participacao: result.rows[0] 
         });
     } catch (err) {
-        // Se a chave primária (usuario_id, evento_id) já existir, retorna erro amigável
+        // Se a chave primária (usuario_id, evento_id) já existir, retorna erro amigável (Código '23505' do PostgreSQL)
         if (err.code === '23505') {
              return res.status(409).json({ error: "Você já está participando deste evento." });
         }
-        console.error(err);
-        res.status(500).json({ error: "Erro ao confirmar presença. Verifique se os IDs são válidos." });
+        console.error("Erro ao confirmar presença:", err);
+        res.status(500).json({ error: "Erro interno ao confirmar presença. Verifique se os IDs são válidos e se o banco está online." });
     }
 });
 
@@ -71,6 +75,8 @@ app.post("/eventos/:evento_id/participar", async (req, res) => {
 app.get("/eventos/:evento_id/participantes", async (req, res) => {
     const { evento_id } = req.params;
     try {
+        // Nota: Essa query pressupõe que há uma tabela 'usuarios' no MESMO banco. 
+        // Se a tabela 'usuarios' estiver no SERVIÇO1, você precisará usar o axios novamente aqui.
         const result = await pool.query(
             // Junta as tabelas para retornar o nome e email dos participantes
             "SELECT u.id AS usuario_id, u.nome, u.email, p.status FROM participantes p JOIN usuarios u ON u.id = p.usuario_id WHERE p.evento_id = $1",
@@ -78,8 +84,8 @@ app.get("/eventos/:evento_id/participantes", async (req, res) => {
         );
         res.json(result.rows);
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: "Erro ao listar participantes." });
+        console.error("Erro ao listar participantes:", err);
+        res.status(500).json({ error: "Erro ao listar participantes. Verifique se a tabela 'usuarios' está acessível." });
     }
 });
 
@@ -90,7 +96,8 @@ app.get("/eventos", async (req, res) => {
         const result = await pool.query("SELECT * FROM eventos");
         res.json(result.rows);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("Erro ao listar eventos:", err);
+        res.status(500).json({ error: "Erro interno no servidor ao listar eventos." });
     }
 });
 
@@ -110,7 +117,8 @@ app.put("/eventos/:id", async (req, res) => {
 
         res.json(result.rows[0]);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("Erro ao atualizar evento:", err);
+        res.status(500).json({ error: "Erro interno no servidor ao atualizar evento." });
     }
 });
 
@@ -129,9 +137,13 @@ app.delete("/eventos/:id", async (req, res) => {
 
         res.json({ message: "Evento deletado com sucesso", evento: result.rows[0] });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("Erro ao deletar evento:", err);
+        res.status(500).json({ error: "Erro interno no servidor ao deletar evento." });
     }
 });
 
+// Corrigido: Usar a variável de ambiente PORT do Render ou 3002 como fallback
+const PORT = process.env.PORT || 3002;
+
 // Rodar servidor
-app.listen(3002, () => console.log("Serviço de eventos rodando na porta 3002"));
+app.listen(PORT, () => console.log(`Serviço de eventos rodando na porta ${PORT}`));
