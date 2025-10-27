@@ -1,5 +1,5 @@
 const express = require("express");
-const pool = require("../Banco/db"); // Conexão configurada
+const pool = require("./Banco/db"); // Conexão configurada
 const cors = require("cors");
 const bcrypt = require("bcrypt");
 
