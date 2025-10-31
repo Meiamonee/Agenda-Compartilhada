@@ -1,7 +1,14 @@
 import axios from "axios";
 
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL, // 🔄 agora vem do .env
+// Instância para o Serviço de Usuários (Login/Cadastro)
+export const authApi = axios.create({
+  baseURL: import.meta.env.VITE_AUTH_API_URL, 
 });
 
-export default api;
+// Instância para o Serviço de Eventos
+export const eventsApi = axios.create({
+  baseURL: import.meta.env.VITE_EVENTS_API_URL,
+});
+
+// Exporta o authApi como default para compatibilidade com outros arquivos (como o Login.js)
+export default authApi;

@@ -7,40 +7,38 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-// Endpoint para Criar Evento com verificação no serviço de usuários
+// =======================
+// Criação de Evento - CORRIGIDA
+// =======================
 app.post("/eventos", async (req, res) => {
-    const { titulo, descricao, data, hora, usuario_id } = req.body;
+    // Agora esperamos o ID do organizador, horário de início e FIM
+    const { title, description, start_time, end_time, organizer_id } = req.body; 
+    
     // Variável de ambiente configurada no Render para acessar o outro serviço
     const servico1Url = process.env.SERVICO1_URL; 
 
     try {
-        // 1. Verifica se o usuário existe chamando o serviço1
-        // Nota: É importante garantir que servico1Url esteja configurada no Render.
-        const usuarioResponse = await axios.get(`${servico1Url}/usuarios/${usuario_id}`);
-        const usuario = usuarioResponse.data;
+        // 1. Verifica se o usuário (organizer) existe chamando o serviço1
+        const usuarioResponse = await axios.get(`${servico1Url}/usuarios/${organizer_id}`);
+        // Se chegar aqui sem erro, o usuário existe.
 
-        if (!usuario || !usuario.id) {
-            return res.status(400).json({ error: "Usuário não encontrado" });
-        }
-
-        // 2. Insere evento no banco
+        // 2. Insere evento no banco com nomes de colunas e campos corretos
         const result = await pool.query(
-            "INSERT INTO eventos (titulo, descricao, data, hora, usuario_id) VALUES ($1, $2, $3, $4, $5) RETURNING *",
-            [titulo, descricao, data, hora, usuario_id]
+            "INSERT INTO events (title, description, start_time, end_time, organizer_id) VALUES ($1, $2, $3, $4, $5) RETURNING *",
+            [title, description, start_time, end_time, organizer_id]
         );
 
         res.status(201).json(result.rows[0]);
     } catch (err) {
-        // Tratamento de erro mais robusto para chamadas de serviço
+        // ... (Tratamento de erro igual ao original) ...
         if (err.response) {
             if (err.response.status === 404) {
                 return res.status(400).json({ 
-                    error: "Usuário não encontrado no Serviço de Usuários (ID inválido)." 
+                    error: "Organizador não encontrado no Serviço de Usuários (ID inválido)." 
                 });
             }
         }
-        console.error(err);
-        // Garante que a mensagem de erro seja a mais útil possível
+        console.error("Erro no servidor de eventos:", err);
         res.status(500).json({ error: "Erro interno no servidor ao criar evento." });
     }
 });
