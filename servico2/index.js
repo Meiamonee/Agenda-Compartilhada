@@ -7,22 +7,27 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-// =======================
-// Criação de Evento - CORRIGIDA
-// =======================
+// Variável que armazena a URL base do Serviço de Usuários (Serviço 1)
+const servico1Url = process.env.SERVICO1_URL; 
+
+// ===============================================
+// 1. Rota POST /eventos (Criação de Evento)
+//    Usa: events, title, description, start_time, end_time, organizer_id.
+// ===============================================
 app.post("/eventos", async (req, res) => {
-    // Agora esperamos o ID do organizador, horário de início e FIM
+    // 🛑 O Frontend DEVE ENVIAR: { title, description, start_time, end_time, organizer_id }
     const { title, description, start_time, end_time, organizer_id } = req.body; 
+
+    // Verificação explícita de campos obrigatórios
+    if (!title || !start_time || !end_time || !organizer_id) {
+        return res.status(400).json({ error: "Campos obrigatórios faltando: title, start_time, end_time e organizer_id." });
+    }
     
-    // Variável de ambiente configurada no Render para acessar o outro serviço
-    const servico1Url = process.env.SERVICO1_URL; 
-
     try {
-        // 1. Verifica se o usuário (organizer) existe chamando o serviço1
-        const usuarioResponse = await axios.get(`${servico1Url}/usuarios/${organizer_id}`);
-        // Se chegar aqui sem erro, o usuário existe.
+        // 1. Coordenação: Verifica se o usuário (organizer_id) existe chamando o Serviço de Usuários
+        await axios.get(`${servico1Url}/usuarios/${organizer_id}`);
 
-        // 2. Insere evento no banco com nomes de colunas e campos corretos
+        // 2. Coerência: Insere evento no banco com nomes de colunas e tabela corretos
         const result = await pool.query(
             "INSERT INTO events (title, description, start_time, end_time, organizer_id) VALUES ($1, $2, $3, $4, $5) RETURNING *",
             [title, description, start_time, end_time, organizer_id]
@@ -30,68 +35,27 @@ app.post("/eventos", async (req, res) => {
 
         res.status(201).json(result.rows[0]);
     } catch (err) {
-        // ... (Tratamento de erro igual ao original) ...
-        if (err.response) {
-            if (err.response.status === 404) {
-                return res.status(400).json({ 
-                    error: "Organizador não encontrado no Serviço de Usuários (ID inválido)." 
-                });
-            }
+        // Tratamento de erro para falha na verificação de usuário (Serviço 1)
+        if (err.response && err.response.status === 404) {
+            return res.status(400).json({ 
+                error: "Organizador (organizer_id) não encontrado no Serviço de Usuários." 
+            });
         }
-        console.error("Erro no servidor de eventos:", err);
-        res.status(500).json({ error: "Erro interno no servidor ao criar evento." });
-    }
-});
-
-
-// Endpoint NOVO: Confirmar presença em um evento
-app.post("/eventos/:evento_id/participar", async (req, res) => {
-    const { evento_id } = req.params;
-    const { usuario_id } = req.body; // Espera que o ID do usuário seja enviado no body
-    
-    try {
-        // Tenta inserir na tabela participantes
-        const result = await pool.query(
-            "INSERT INTO participantes (evento_id, usuario_id) VALUES ($1, $2) RETURNING *",
-            [evento_id, usuario_id]
-        );
-        res.status(201).json({ 
-            message: "Presença confirmada com sucesso!", 
-            participacao: result.rows[0] 
+        
+        console.error("Erro no servidor de eventos (POST /eventos):", err);
+        res.status(500).json({ 
+            error: "Erro interno ao criar evento. Verifique a URL do Serviço de Usuários e o formato TIMESTAMP das datas/horas." 
         });
-    } catch (err) {
-        // Se a chave primária (usuario_id, evento_id) já existir, retorna erro amigável (Código '23505' do PostgreSQL)
-        if (err.code === '23505') {
-             return res.status(409).json({ error: "Você já está participando deste evento." });
-        }
-        console.error("Erro ao confirmar presença:", err);
-        res.status(500).json({ error: "Erro interno ao confirmar presença. Verifique se os IDs são válidos e se o banco está online." });
     }
 });
 
-// Endpoint Listar participantes de um evento
-app.get("/eventos/:evento_id/participantes", async (req, res) => {
-    const { evento_id } = req.params;
-    try {
-        // Nota: Essa query pressupõe que há uma tabela 'usuarios' no MESMO banco. 
-        // Se a tabela 'usuarios' estiver no SERVIÇO1, você precisará usar o axios novamente aqui.
-        const result = await pool.query(
-            // Junta as tabelas para retornar o nome e email dos participantes
-            "SELECT u.id AS usuario_id, u.nome, u.email, p.status FROM participantes p JOIN usuarios u ON u.id = p.usuario_id WHERE p.evento_id = $1",
-            [evento_id]
-        );
-        res.json(result.rows);
-    } catch (err) {
-        console.error("Erro ao listar participantes:", err);
-        res.status(500).json({ error: "Erro ao listar participantes. Verifique se a tabela 'usuarios' está acessível." });
-    }
-});
-
-
-// Listar todos os eventos (rota original)
+// ===============================================
+// 2. Rota GET /eventos (Listar Eventos)
+// ===============================================
 app.get("/eventos", async (req, res) => {
     try {
-        const result = await pool.query("SELECT * FROM eventos");
+        // Coerência: Usa a tabela correta 'events'
+        const result = await pool.query("SELECT * FROM events ORDER BY start_time ASC");
         res.json(result.rows);
     } catch (err) {
         console.error("Erro ao listar eventos:", err);
@@ -99,14 +63,19 @@ app.get("/eventos", async (req, res) => {
     }
 });
 
-// Atualizar evento (rota original)
+// ===============================================
+// 3. Rota PUT /eventos/:id (Atualizar Evento)
+//    Usa colunas corretas: title, description, start_time, end_time.
+// ===============================================
 app.put("/eventos/:id", async (req, res) => {
     const { id } = req.params;
-    const { titulo, descricao, data, hora } = req.body;
+    // 🛑 O Frontend DEVE ENVIAR: { title, description, start_time, end_time }
+    const { title, description, start_time, end_time } = req.body; 
     try {
+        // Coerência: Usa a tabela 'events' e colunas corretas
         const result = await pool.query(
-            "UPDATE eventos SET titulo=$1, descricao=$2, data=$3, hora=$4 WHERE id=$5 RETURNING *",
-            [titulo, descricao, data, hora, id]
+            "UPDATE events SET title=$1, description=$2, start_time=$3, end_time=$4 WHERE id=$5 RETURNING *",
+            [title, description, start_time, end_time, id]
         );
 
         if (result.rows.length === 0) {
@@ -120,12 +89,15 @@ app.put("/eventos/:id", async (req, res) => {
     }
 });
 
-// Deletar evento (rota original)
+// ===============================================
+// 4. Rota DELETE /eventos/:id (Deletar Evento)
+// ===============================================
 app.delete("/eventos/:id", async (req, res) => {
     const { id } = req.params;
     try {
+        // Coerência: Usa a tabela correta 'events'
         const result = await pool.query(
-            "DELETE FROM eventos WHERE id=$1 RETURNING *",
+            "DELETE FROM events WHERE id=$1 RETURNING *",
             [id]
         );
 
@@ -139,6 +111,76 @@ app.delete("/eventos/:id", async (req, res) => {
         res.status(500).json({ error: "Erro interno no servidor ao deletar evento." });
     }
 });
+
+
+// ===============================================
+// 5. Rota POST /eventos/:evento_id/participar
+//    Usa tabela 'participations', colunas corretas (event_id, user_id) e 'status'.
+// ===============================================
+app.post("/eventos/:evento_id/participar", async (req, res) => {
+    const { evento_id } = req.params;
+    // Coerência: A coluna correta é user_id
+    const { user_id } = req.body; 
+    
+    try {
+        // Coerência: Insere na tabela 'participations' com 'status' obrigatório
+        const result = await pool.query(
+            "INSERT INTO participations (event_id, user_id, status) VALUES ($1, $2, 'confirmed') RETURNING *",
+            [evento_id, user_id]
+        );
+        res.status(201).json({ 
+            message: "Presença confirmada com sucesso!", 
+            participacao: result.rows[0] 
+        });
+    } catch (err) {
+        // Se a chave UNIQUE (user_id, event_id) já existir, retorna erro amigável (Código '23505' do PostgreSQL)
+        if (err.code === '23505') {
+             return res.status(409).json({ error: "Você já está participando deste evento." });
+        }
+        console.error("Erro ao confirmar presença:", err);
+        res.status(500).json({ error: "Erro interno ao confirmar presença. Verifique se os IDs são válidos e se o banco está online." });
+    }
+});
+
+// ===============================================
+// 6. Rota GET /eventos/:evento_id/participantes (Coordenação de Microsserviços)
+// ===============================================
+app.get("/eventos/:evento_id/participantes", async (req, res) => {
+    const { evento_id } = req.params;
+    try {
+        // 1. Coerência: Pega os IDs da tabela 'participations'
+        const participantsResult = await pool.query(
+            "SELECT user_id, status FROM participations WHERE event_id = $1",
+            [evento_id]
+        );
+        
+        const participantIds = participantsResult.rows.map(p => p.user_id);
+
+        if (participantIds.length === 0) {
+            return res.json([]); // Nenhum participante
+        }
+
+        // 2. Coordenação: Chama o Serviço de Usuários para obter os detalhes
+        const participantsWithDetails = await Promise.all(
+            participantIds.map(async (id) => {
+                try {
+                    const userResponse = await axios.get(`${servico1Url}/usuarios/${id}`); 
+                    const status = participantsResult.rows.find(p => p.user_id === id)?.status;
+                    return { ...userResponse.data, status };
+                } catch (userErr) {
+                    console.warn(`Detalhes do usuário ${id} não encontrados no Serviço de Usuários.`);
+                    return { id: id, nome: "Usuário Desconhecido", status: participantsResult.rows.find(p => p.user_id === id)?.status };
+                }
+            })
+        );
+
+        res.json(participantsWithDetails);
+    } catch (err) {
+        console.error("Erro ao listar participantes:", err);
+        res.status(500).json({ error: "Erro ao listar participantes. Verifique a URL do Serviço de Usuários." });
+    }
+});
+
 
 // Corrigido: Usar a variável de ambiente PORT do Render ou 3002 como fallback
 const PORT = process.env.PORT || 3002;
