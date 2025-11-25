@@ -109,7 +109,7 @@ app.post("/eventos", authorize, async (req, res) => {
         await getUserDetails(organizer_id, req.token);
 
         const result = await pool.query(
-            "INSERT INTO events (title, description, start_time, end_time, organizer_id) VALUES ($1, $2, $3, $4, $5) RETURNING *",
+            "INSERT INTO eventos (title, description, start_time, end_time, organizer_id) VALUES ($1, $2, $3, $4, $5) RETURNING *",
             [title, description, start_time, end_time, organizer_id]
         );
 
@@ -133,7 +133,7 @@ app.post("/eventos/:evento_id/convidar", authorize, async (req, res) => {
 
     try {
         // Coerência: Verifica se o usuário logado é o organizador
-        const eventResult = await pool.query("SELECT organizer_id FROM events WHERE id = $1", [evento_id]);
+        const eventResult = await pool.query("SELECT organizer_id FROM eventos WHERE id = $1", [evento_id]);
         if (eventResult.rows.length === 0) {
             return res.status(404).json({ error: "Evento não encontrado." });
         }
@@ -149,7 +149,7 @@ app.post("/eventos/:evento_id/convidar", authorize, async (req, res) => {
         const params = user_ids.flatMap(id => [evento_id, id]);
 
         const query = `
-            INSERT INTO participations (event_id, user_id, status) 
+            INSERT INTO participacoes (event_id, user_id, status) 
             VALUES ${values} 
             ON CONFLICT (event_id, user_id) DO UPDATE SET status = 'invited' 
             RETURNING *;
@@ -181,13 +181,13 @@ app.put("/participations/:id", authorize, async (req, res) => {
     
     try {
         // Coerência: Verifica se a participação pertence ao usuário logado
-        const participationCheck = await pool.query("SELECT user_id FROM participations WHERE id = $1", [id]);
+        const participationCheck = await pool.query("SELECT user_id FROM participacoes WHERE id = $1", [id]);
         if (participationCheck.rows.length === 0 || participationCheck.rows[0].user_id !== req.userId) {
             return res.status(403).json({ error: "Você não tem permissão para modificar esta participação." });
         }
 
         const result = await pool.query(
-            "UPDATE participations SET status = $1 WHERE id = $2 RETURNING *",
+            "UPDATE participacoes SET status = $1 WHERE id = $2 RETURNING *",
             [status, id]
         );
 
@@ -214,8 +214,8 @@ app.get("/usuarios/:user_id/convites", authorize, async (req, res) => {
             `SELECT 
                 e.*, 
                 p.id AS participation_id 
-             FROM events e
-             JOIN participations p ON e.id = p.event_id
+             FROM eventos e
+             JOIN participacoes p ON e.id = p.event_id
              WHERE p.user_id = $1 AND p.status = 'invited'
              ORDER BY e.start_time ASC`, 
             [user_id]
@@ -243,8 +243,8 @@ app.get("/usuarios/:user_id/aceitos", authorize, async (req, res) => {
             `SELECT 
                 e.*, 
                 p.id AS participation_id 
-             FROM events e
-             JOIN participations p ON e.id = p.event_id
+             FROM eventos e
+             JOIN participacoes p ON e.id = p.event_id
              WHERE p.user_id = $1 AND p.status = 'accepted'
              ORDER BY e.start_time ASC`, 
             [user_id]
@@ -263,7 +263,7 @@ app.get("/usuarios/:user_id/aceitos", authorize, async (req, res) => {
 // =================================================================
 app.get("/eventos", async (req, res) => {
     try {
-        const result = await pool.query("SELECT * FROM events ORDER BY start_time ASC");
+        const result = await pool.query("SELECT * FROM eventos ORDER BY start_time ASC");
         res.json(result.rows);
     } catch (err) {
         console.error("Erro ao listar eventos:", err);
@@ -276,19 +276,19 @@ app.get("/eventos", async (req, res) => {
 // ===============================================
 app.put("/eventos/:id", authorize, async (req, res) => {
     const { id } = req.params;
-    const { title, description, start_time, end_time } = req.body; 
-    try {
+    const { title, description, start_time, end_time } = req.body; 
+    try {
         // Autorização: Verifica se o usuário logado é o organizador
-        const checkOrganizer = await pool.query("SELECT organizer_id FROM events WHERE id = $1", [id]);
+        const checkOrganizer = await pool.query("SELECT organizer_id FROM eventos WHERE id = $1", [id]);
         if (checkOrganizer.rows.length === 0) return res.status(404).json({ error: "Evento não encontrado" });
         if (checkOrganizer.rows[0].organizer_id !== req.userId) {
             return res.status(403).json({ error: "Apenas o organizador pode atualizar o evento." });
         }
 
-        const result = await pool.query(
-            "UPDATE events SET title=$1, description=$2, start_time=$3, end_time=$4 WHERE id=$5 RETURNING *",
-            [title, description, start_time, end_time, id]
-        );
+        const result = await pool.query(
+            "UPDATE eventos SET title=$1, description=$2, start_time=$3, end_time=$4 WHERE id=$5 RETURNING *",
+            [title, description, start_time, end_time, id]
+        );
 
         res.json(result.rows[0]);
     } catch (err) {
@@ -304,19 +304,19 @@ app.delete("/eventos/:id", authorize, async (req, res) => {
     const { id } = req.params;
     try {
         // Autorização: Verifica se o usuário logado é o organizador
-        const checkOrganizer = await pool.query("SELECT organizer_id FROM events WHERE id = $1", [id]);
+        const checkOrganizer = await pool.query("SELECT organizer_id FROM eventos WHERE id = $1", [id]);
         if (checkOrganizer.rows.length === 0) return res.status(404).json({ error: "Evento não encontrado" });
         if (checkOrganizer.rows[0].organizer_id !== req.userId) {
             return res.status(403).json({ error: "Apenas o organizador pode deletar o evento." });
         }
         
         // Exclui participações relacionadas (para evitar erro de chave estrangeira)
-        await pool.query("DELETE FROM participations WHERE event_id = $1", [id]);
+        await pool.query("DELETE FROM participacoes WHERE event_id = $1", [id]);
         
-        const result = await pool.query(
-            "DELETE FROM events WHERE id=$1 RETURNING *",
-            [id]
-        );
+        const result = await pool.query(
+            "DELETE FROM eventos WHERE id=$1 RETURNING *",
+            [id]
+        );
 
         res.json({ message: "Evento deletado com sucesso", evento: result.rows[0] });
     } catch (err) {
@@ -332,10 +332,10 @@ app.delete("/eventos/:id", authorize, async (req, res) => {
 app.get("/eventos/:evento_id/participantes", authorize, async (req, res) => {
     const { evento_id } = req.params;
     try {
-        const participantsResult = await pool.query(
-            "SELECT user_id, status, id AS participation_id FROM participations WHERE event_id = $1",
-            [evento_id]
-        );
+        const participantsResult = await pool.query(
+            "SELECT user_id, status, id AS participation_id FROM participacoes WHERE event_id = $1",
+            [evento_id]
+        );
         
         if (participantsResult.rows.length === 0) {
             return res.json([]); 

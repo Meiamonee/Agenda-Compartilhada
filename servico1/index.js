@@ -58,10 +58,10 @@ app.post("/usuarios", async (req, res) => {
   try {
     const hashedPassword = await bcrypt.hash(senha, saltRounds);
 
-    const result = await pool.query(
-      "INSERT INTO users (username, password_hash) VALUES ($1, $2) RETURNING id, username",
-      [email, hashedPassword]
-    );
+    const result = await pool.query(
+      "INSERT INTO usuarios (username, password_hash) VALUES ($1, $2) RETURNING id, username",
+      [email, hashedPassword]
+    );
 
     const user = result.rows[0];
     res.status(201).json({
@@ -85,7 +85,7 @@ app.post("/login", async (req, res) => {
   const { email, senha } = req.body;
 
   try {
-    const userResult = await pool.query("SELECT id, username, password_hash FROM users WHERE username = $1", [email]);
+    const userResult = await pool.query("SELECT id, username, password_hash FROM usuarios WHERE username = $1", [email]);
 
     if (userResult.rows.length === 0) {
       return res.status(400).json({ error: "Email ou senha inválidos." });
@@ -117,7 +117,7 @@ app.post("/login", async (req, res) => {
 // =======================
 app.get("/usuarios", verifyToken, async (req, res) => {
   try {
-    const result = await pool.query("SELECT id, username FROM users");
+    const result = await pool.query("SELECT id, username FROM usuarios");
     const formattedUsers = result.rows.map((user) => ({
       id: user.id,
       email: user.username,
@@ -135,7 +135,7 @@ app.get("/usuarios", verifyToken, async (req, res) => {
 app.get("/usuarios/:id", verifyToken, async (req, res) => {
   const { id } = req.params;
   try {
-    const result = await pool.query("SELECT id, username FROM users WHERE id = $1", [id]);
+    const result = await pool.query("SELECT id, username FROM usuarios WHERE id = $1", [id]);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: "Usuário não encontrado" });
     }

@@ -24,15 +24,23 @@ export default function Login() {
     setSucesso("");
     setIsLoading(true);
 
+    console.log("🟢 [LOGIN] Iniciando cadastro...", { nome, email });
+
     try {
       await authService.register(nome, email, senha);
+      console.log("✅ [LOGIN] Cadastro bem-sucedido!");
       setSucesso("Conta criada com sucesso! Faça login 🎉");
 
       // volta pro login
       setModoCadastro(false);
       limparCampos();
     } catch (err) {
-      const msg = err.response?.data?.error || "Erro ao cadastrar.";
+      console.error("❌ [LOGIN] Erro no cadastro:", err);
+      console.error("❌ [LOGIN] Response data:", err.response?.data);
+      console.error("❌ [LOGIN] Status:", err.response?.status);
+      console.error("❌ [LOGIN] Headers:", err.response?.headers);
+      
+      const msg = err.response?.data?.error || err.message || "Erro ao cadastrar.";
       setErro(msg);
     } finally {
       setIsLoading(false);
