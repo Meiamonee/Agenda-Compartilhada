@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import api from "../api/api"; 
+import { authService } from "../api/apiService"; 
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -25,7 +25,7 @@ export default function Login() {
     setIsLoading(true);
 
     try {
-      const res = await api.post("/usuarios", { nome, email, senha });
+      await authService.register(nome, email, senha);
       setSucesso("Conta criada com sucesso! Faça login 🎉");
 
       // volta pro login
@@ -46,8 +46,7 @@ export default function Login() {
     setIsLoading(true);
 
     try {
-      const res = await api.post("/login", { email, senha });
-      localStorage.setItem("user", JSON.stringify(res.data.user));
+      await authService.login(email, senha);
       navigate("/dashboard");
     } catch (err) {
       const msg = err.response?.data?.error || "Erro no login. Verifique suas credenciais.";
