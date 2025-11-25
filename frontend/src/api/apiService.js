@@ -173,6 +173,22 @@ export const eventService = {
   async getEventParticipants(eventoId) {
     const response = await eventsApi.get(`/eventos/${eventoId}/participantes`);
     return response.data;
+  },
+
+  // Participar de um evento
+  async joinEvent(eventoId) {
+    console.log("🔵 [DEBUG] Participando do evento:", eventoId);
+    const response = await eventsApi.post(`/eventos/${eventoId}/participar`);
+    console.log("✅ [DEBUG] Participação confirmada:", response.data);
+    return response.data;
+  },
+
+  // Sair de um evento
+  async leaveEvent(eventoId) {
+    console.log("🔵 [DEBUG] Saindo do evento:", eventoId);
+    const response = await eventsApi.delete(`/eventos/${eventoId}/sair`);
+    console.log("✅ [DEBUG] Saída confirmada:", response.data);
+    return response.data;
   }
 };
 

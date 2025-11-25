@@ -2,11 +2,14 @@ import { useState } from "react";
 
 export default function EventCard({ 
   event, 
-  isOrganizer, 
+  isOrganizer,
+  isParticipating,
   onEdit, 
   onDelete, 
   onInvite, 
-  onViewParticipants 
+  onViewParticipants,
+  onJoin,
+  onLeave
 }) {
   const [showActions, setShowActions] = useState(false);
 
@@ -93,12 +96,29 @@ export default function EventCard({
       )}
       
       {!isOrganizer && (
-        <button
-          onClick={() => onViewParticipants(event)}
-          className="mt-3 w-full px-3 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 text-sm"
-        >
-          Ver Participantes
-        </button>
+        <div className="mt-3 space-y-2">
+          {isParticipating ? (
+            <button
+              onClick={() => onLeave(event)}
+              className="w-full px-3 py-2 bg-red-100 text-red-700 rounded-md hover:bg-red-200 text-sm font-semibold"
+            >
+              Sair do Evento
+            </button>
+          ) : (
+            <button
+              onClick={() => onJoin(event)}
+              className="w-full px-3 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 text-sm font-semibold"
+            >
+              Participar do Evento
+            </button>
+          )}
+          <button
+            onClick={() => onViewParticipants(event)}
+            className="w-full px-3 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 text-sm"
+          >
+            Ver Participantes
+          </button>
+        </div>
       )}
     </div>
   );

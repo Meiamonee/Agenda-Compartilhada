@@ -327,8 +327,78 @@ app.delete("/eventos/:id", authorize, async (req, res) => {
 
 
 // =================================================================
-// 9. Rota GET /eventos/:evento_id/participantes (Listar Participantes) - Protegida
+// 9. Rota POST /eventos/:evento_id/participar (Participar de Evento) - Protegida
 // =================================================================
+app.post("/eventos/:evento_id/participar", authorize, async (req, res) => {
+    const { evento_id } = req.params;
+    const userId = req.userId;
+
+    try {
+        // Verifica se o evento existe
+        const eventCheck = await pool.query("SELECT id FROM eventos WHERE id = $1", [evento_id]);
+        if (eventCheck.rows.length === 0) {
+            return res.status(404).json({ error: "Evento não encontrado." });
+        }
+
+        // Insere participação com status 'accepted' (já confirmado)
+        const result = await pool.query(
+            `INSERT INTO participacoes (event_id, user_id, status) 
+             VALUES ($1, $2, 'accepted') 
+             ON CONFLICT (event_id, user_id) 
+             DO UPDATE SET status = 'accepted' 
+             RETURNING *`,
+            [evento_id, userId]
+        );
+
+        res.status(201).json({
+            message: "Você está participando deste evento!",
+            participation: result.rows[0]
+        });
+
+    } catch (err) {
+        console.error("Erro ao participar do evento:", err);
+        res.status(500).json({ error: "Erro interno ao participar do evento." });
+    }
+});
+
+// =================================================================
+// 10. Rota GET /eventos/:evento_id/participantes (Listar Participantes) - Protegida
+// =================================================================
+// =================================================================
+// 11. Rota DELETE /eventos/:evento_id/sair (Sair de Evento) - Protegida
+// =================================================================
+app.delete("/eventos/:evento_id/sair", authorize, async (req, res) => {
+    const { evento_id } = req.params;
+    const userId = req.userId;
+
+    try {
+        // Verifica se o usuário é o organizador
+        const eventCheck = await pool.query("SELECT organizer_id FROM eventos WHERE id = $1", [evento_id]);
+        if (eventCheck.rows.length === 0) {
+            return res.status(404).json({ error: "Evento não encontrado." });
+        }
+        if (eventCheck.rows[0].organizer_id === userId) {
+            return res.status(403).json({ error: "Organizador não pode sair do próprio evento." });
+        }
+
+        // Remove participação
+        const result = await pool.query(
+            "DELETE FROM participacoes WHERE event_id = $1 AND user_id = $2 RETURNING *",
+            [evento_id, userId]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: "Você não está participando deste evento." });
+        }
+
+        res.json({ message: "Você saiu do evento.", participation: result.rows[0] });
+
+    } catch (err) {
+        console.error("Erro ao sair do evento:", err);
+        res.status(500).json({ error: "Erro interno ao sair do evento." });
+    }
+});
+
 app.get("/eventos/:evento_id/participantes", authorize, async (req, res) => {
     const { evento_id } = req.params;
     try {

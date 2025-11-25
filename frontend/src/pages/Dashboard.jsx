@@ -23,6 +23,7 @@ export default function Dashboard() {
   const [invites, setInvites] = useState([]);
   const [users, setUsers] = useState([]);
   const [participants, setParticipants] = useState([]);
+  const [userParticipations, setUserParticipations] = useState([]);
   
   // Estados de UI
   const [activeTab, setActiveTab] = useState("all"); // all, my, accepted, invites
@@ -320,6 +321,53 @@ export default function Dashboard() {
     }
   };
 
+  // Participar de evento
+  const handleJoinEvent = async (event) => {
+    setError("");
+    setSuccess("");
+    setLoading(true);
+
+    try {
+      await eventService.joinEvent(event.id);
+      setSuccess("Você está participando do evento!");
+      await loadAcceptedEvents();
+      await loadAllData();
+    } catch (err) {
+      const msg = err.response?.data?.error || "Erro ao participar do evento";
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Sair de evento
+  const handleLeaveEvent = async (event) => {
+    if (!window.confirm(`Tem certeza que deseja sair do evento "${event.title}"?`)) {
+      return;
+    }
+
+    setError("");
+    setSuccess("");
+    setLoading(true);
+
+    try {
+      await eventService.leaveEvent(event.id);
+      setSuccess("Você saiu do evento.");
+      await loadAcceptedEvents();
+      await loadAllData();
+    } catch (err) {
+      const msg = err.response?.data?.error || "Erro ao sair do evento";
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Verificar se o usuário está participando de um evento
+  const isUserParticipating = (eventId) => {
+    return acceptedEvents.some(e => e.id === eventId);
+  };
+
   // Logout
   const handleLogout = () => {
     authService.logout();
@@ -451,10 +499,13 @@ export default function Dashboard() {
                   key={event.id}
                   event={event}
                   isOrganizer={event.organizer_id === userId}
+                  isParticipating={isUserParticipating(event.id)}
                   onEdit={openEditModal}
                   onDelete={handleDeleteEvent}
                   onInvite={openInviteModal}
                   onViewParticipants={handleViewParticipants}
+                  onJoin={handleJoinEvent}
+                  onLeave={handleLeaveEvent}
                 />
               ))
             )}
@@ -495,10 +546,13 @@ export default function Dashboard() {
                   key={event.id}
                   event={event}
                   isOrganizer={event.organizer_id === userId}
+                  isParticipating={true}
                   onEdit={openEditModal}
                   onDelete={handleDeleteEvent}
                   onInvite={openInviteModal}
                   onViewParticipants={handleViewParticipants}
+                  onJoin={handleJoinEvent}
+                  onLeave={handleLeaveEvent}
                 />
               ))
             )}
