@@ -4,6 +4,7 @@ export default function EventCard({
   event, 
   isOrganizer,
   isParticipating,
+  isInvited = false,
   onEdit, 
   onDelete, 
   onInvite, 
@@ -12,6 +13,10 @@ export default function EventCard({
   onLeave
 }) {
   const [showActions, setShowActions] = useState(false);
+  
+  // Garante que só é público se explicitamente true
+  const isPublic = event.is_public === true;
+  const canParticipate = isPublic || isInvited || isOrganizer;
 
   const formatDateTime = (dateTime) => {
     if (!dateTime) return "Data não definida";
@@ -60,11 +65,22 @@ export default function EventCard({
         </div>
       </div>
 
-      {isOrganizer && (
-        <span className="inline-block px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full font-semibold mb-3">
-          Organizador
-        </span>
-      )}
+      <div className="flex gap-2 mb-3">
+        {isOrganizer && (
+          <span className="inline-block px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full font-semibold">
+            Organizador
+          </span>
+        )}
+        {isPublic ? (
+          <span className="inline-block px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full font-semibold">
+            Público
+          </span>
+        ) : (
+          <span className="inline-block px-2 py-1 bg-orange-100 text-orange-700 text-xs rounded-full font-semibold">
+            Privado
+          </span>
+        )}
+      </div>
 
       {showActions && isOrganizer && (
         <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t">
@@ -107,9 +123,15 @@ export default function EventCard({
           ) : (
             <button
               onClick={() => onJoin(event)}
-              className="w-full px-3 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 text-sm font-semibold"
+              disabled={!canParticipate}
+              className={`w-full px-3 py-2 rounded-md text-sm font-semibold ${
+                canParticipate
+                  ? 'bg-green-500 text-white hover:bg-green-600'
+                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              }`}
+              title={!canParticipate ? 'Evento privado - Você precisa de um convite' : ''}
             >
-              Participar do Evento
+              {canParticipate ? 'Participar do Evento' : 'Convite Necessário'}
             </button>
           )}
           <button

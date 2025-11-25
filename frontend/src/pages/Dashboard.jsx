@@ -8,6 +8,7 @@ import {
 import EventCard from "../components/EventCard";
 import InviteCard from "../components/InviteCard";
 import Modal from "../components/Modal";
+import Calendar from "../components/Calendar";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -41,8 +42,9 @@ export default function Dashboard() {
   const [eventForm, setEventForm] = useState({
     title: "",
     description: "",
+    start_date: "",
     start_time: "",
-    end_time: ""
+    is_public: true
   });
   const [editingEvent, setEditingEvent] = useState(null);
   const [selectedEvent, setSelectedEvent] = useState(null);
@@ -146,13 +148,22 @@ export default function Dashboard() {
     setLoading(true);
 
     try {
+      // Combinar data e hora em formato ISO
+      const startDateTime = `${eventForm.start_date}T${eventForm.start_time}:00`;
+      
+      // Criar data de fim (1 hora depois por padrão)
+      const startDate = new Date(startDateTime);
+      const endDate = new Date(startDate.getTime() + 60 * 60 * 1000); // +1 hora
+      const endDateTime = endDate.toISOString();
+      
       // Criar o evento
       const newEvent = await eventService.createEvent(
         eventForm.title,
         eventForm.description,
-        eventForm.start_time,
-        eventForm.end_time,
-        userId
+        startDateTime,
+        endDateTime,
+        userId,
+        eventForm.is_public
       );
       
       // Se há usuários selecionados, enviar convites
@@ -169,7 +180,7 @@ export default function Dashboard() {
       }
       
       setShowCreateModal(false);
-      setEventForm({ title: "", description: "", start_time: "", end_time: "" });
+      setEventForm({ title: "", description: "", start_date: "", start_time: "", is_public: true });
       setSelectedUsers([]);
       await loadEvents();
     } catch (err) {
@@ -188,18 +199,27 @@ export default function Dashboard() {
     setLoading(true);
 
     try {
+      // Combinar data e hora
+      const startDateTime = `${eventForm.start_date}T${eventForm.start_time}:00`;
+      
+      // Criar data de fim (1 hora depois)
+      const startDate = new Date(startDateTime);
+      const endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
+      const endDateTime = endDate.toISOString();
+      
       await eventService.updateEvent(
         editingEvent.id,
         eventForm.title,
         eventForm.description,
-        eventForm.start_time,
-        eventForm.end_time
+        startDateTime,
+        endDateTime,
+        eventForm.is_public
       );
       
       setSuccess("Evento atualizado com sucesso!");
       setShowEditModal(false);
       setEditingEvent(null);
-      setEventForm({ title: "", description: "", start_time: "", end_time: "" });
+      setEventForm({ title: "", description: "", start_date: "", start_time: "", is_public: true });
       await loadEvents();
     } catch (err) {
       const msg = err.response?.data?.error || "Erro ao atualizar evento";
@@ -234,11 +254,22 @@ export default function Dashboard() {
   // Abrir modal de edição
   const openEditModal = (event) => {
     setEditingEvent(event);
+    
+    // Separar data e hora do start_time
+    let startDate = "";
+    let startTime = "";
+    if (event.start_time) {
+      const dateObj = new Date(event.start_time);
+      startDate = dateObj.toISOString().split('T')[0];
+      startTime = dateObj.toTimeString().slice(0, 5);
+    }
+    
     setEventForm({
       title: event.title,
       description: event.description || "",
-      start_time: event.start_time ? event.start_time.slice(0, 16) : "",
-      end_time: event.end_time ? event.end_time.slice(0, 16) : ""
+      start_date: startDate,
+      start_time: startTime,
+      is_public: event.is_public !== false
     });
     setShowEditModal(true);
   };
@@ -402,6 +433,11 @@ export default function Dashboard() {
     return acceptedEvents.some(e => e.id === eventId);
   };
 
+  // Verificar se o usuário foi convidado para um evento
+  const isUserInvited = (eventId) => {
+    return invites.some(e => e.id === eventId) || acceptedEvents.some(e => e.id === eventId);
+  };
+
   // Logout
   const handleLogout = () => {
     authService.logout();
@@ -526,6 +562,7 @@ export default function Dashboard() {
                   event={event}
                   isOrganizer={event.organizer_id === userId}
                   isParticipating={isUserParticipating(event.id)}
+                  isInvited={isUserInvited(event.id)}
                   onEdit={openEditModal}
                   onDelete={handleDeleteEvent}
                   onInvite={openInviteModal}
@@ -573,6 +610,7 @@ export default function Dashboard() {
                   event={event}
                   isOrganizer={event.organizer_id === userId}
                   isParticipating={true}
+                  isInvited={true}
                   onEdit={openEditModal}
                   onDelete={handleDeleteEvent}
                   onInvite={openInviteModal}
@@ -610,7 +648,7 @@ export default function Dashboard() {
         isOpen={showCreateModal}
         onClose={() => {
           setShowCreateModal(false);
-          setEventForm({ title: "", description: "", start_time: "", end_time: "" });
+          setEventForm({ title: "", description: "", start_date: "", start_time: "", is_public: true });
           setSelectedUsers([]);
         }}
         title="Criar Novo Evento"
@@ -618,7 +656,7 @@ export default function Dashboard() {
         <form onSubmit={handleCreateEvent} className="space-y-4">
           {/* Informações do Evento */}
           <div className="space-y-4 pb-4 border-b">
-            <h3 className="font-semibold text-gray-900">📅 Informações do Evento</h3>
+            <h3 className="font-semibold text-gray-900">Informações do Evento</h3>
             
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -647,39 +685,41 @@ export default function Dashboard() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Início *
-                </label>
-                <input
-                  type="datetime-local"
-                  value={eventForm.start_time}
-                  onChange={(e) => setEventForm({ ...eventForm, start_time: e.target.value })}
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
+            <div className="flex items-center p-3 bg-blue-50 border border-blue-200 rounded-md">
+              <input
+                type="checkbox"
+                id="is_public_create"
+                checked={eventForm.is_public}
+                onChange={(e) => setEventForm({ ...eventForm, is_public: e.target.checked })}
+                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              />
+              <label htmlFor="is_public_create" className="ml-3 text-sm">
+                <span className="font-semibold text-gray-900">Evento Público</span>
+                <p className="text-gray-600 text-xs mt-1">
+                  {eventForm.is_public 
+                    ? "Qualquer pessoa pode participar deste evento" 
+                    : "Apenas pessoas convidadas podem participar"}
+                </p>
+              </label>
+            </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Fim *
-                </label>
-                <input
-                  type="datetime-local"
-                  value={eventForm.end_time}
-                  onChange={(e) => setEventForm({ ...eventForm, end_time: e.target.value })}
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Quando vai acontecer? *
+              </label>
+              <Calendar
+                selectedDate={eventForm.start_date}
+                onDateSelect={(date) => setEventForm({ ...eventForm, start_date: date })}
+                selectedTime={eventForm.start_time}
+                onTimeChange={(time) => setEventForm({ ...eventForm, start_time: time })}
+              />
             </div>
           </div>
 
           {/* Convidar Pessoas */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900">👥 Convidar Pessoas (Opcional)</h3>
+              <h3 className="font-semibold text-gray-900">Convidar Pessoas (Opcional)</h3>
               {selectedUsers.length > 0 && (
                 <span className="text-sm bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-semibold">
                   {selectedUsers.length} selecionado(s)
@@ -738,7 +778,7 @@ export default function Dashboard() {
               type="button"
               onClick={() => {
                 setShowCreateModal(false);
-                setEventForm({ title: "", description: "", start_time: "", end_time: "" });
+                setEventForm({ title: "", description: "", start_date: "", start_time: "", is_public: true });
                 setSelectedUsers([]);
               }}
               className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 font-semibold"
@@ -755,7 +795,7 @@ export default function Dashboard() {
         onClose={() => {
           setShowEditModal(false);
           setEditingEvent(null);
-          setEventForm({ title: "", description: "", start_time: "", end_time: "" });
+          setEventForm({ title: "", description: "", start_date: "", start_time: "", is_public: true });
         }}
         title="Editar Evento"
       >
@@ -785,29 +825,33 @@ export default function Dashboard() {
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Data e Hora de Início *
-            </label>
+          <div className="flex items-center p-3 bg-blue-50 border border-blue-200 rounded-md">
             <input
-              type="datetime-local"
-              value={eventForm.start_time}
-              onChange={(e) => setEventForm({ ...eventForm, start_time: e.target.value })}
-              required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              type="checkbox"
+              id="is_public_edit"
+              checked={eventForm.is_public}
+              onChange={(e) => setEventForm({ ...eventForm, is_public: e.target.checked })}
+              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
             />
+            <label htmlFor="is_public_edit" className="ml-3 text-sm">
+              <span className="font-semibold text-gray-900">Evento Público</span>
+              <p className="text-gray-600 text-xs mt-1">
+                {eventForm.is_public 
+                  ? "Qualquer pessoa pode participar deste evento" 
+                  : "Apenas pessoas convidadas podem participar"}
+              </p>
+            </label>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Data e Hora de Fim *
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Quando vai acontecer? *
             </label>
-            <input
-              type="datetime-local"
-              value={eventForm.end_time}
-              onChange={(e) => setEventForm({ ...eventForm, end_time: e.target.value })}
-              required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            <Calendar
+              selectedDate={eventForm.start_date}
+              onDateSelect={(date) => setEventForm({ ...eventForm, start_date: date })}
+              selectedTime={eventForm.start_time}
+              onTimeChange={(time) => setEventForm({ ...eventForm, start_time: time })}
             />
           </div>
 
@@ -824,7 +868,7 @@ export default function Dashboard() {
               onClick={() => {
                 setShowEditModal(false);
                 setEditingEvent(null);
-                setEventForm({ title: "", description: "", start_time: "", end_time: "" });
+                setEventForm({ title: "", description: "", start_date: "", start_time: "", is_public: true });
               }}
               className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 font-semibold"
             >
@@ -884,9 +928,9 @@ export default function Dashboard() {
                             status === 'declined' ? 'text-red-600' :
                             'text-yellow-600'
                           }`}>
-                            {status === 'accepted' ? '✓ Confirmado' :
-                             status === 'declined' ? '✗ Recusou' :
-                             '⏱ Pendente'}
+                            {status === 'accepted' ? 'Confirmado' :
+                             status === 'declined' ? 'Recusou' :
+                             'Pendente'}
                           </span>
                         )}
                       </div>

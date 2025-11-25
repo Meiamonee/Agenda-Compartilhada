@@ -127,13 +127,14 @@ export const authService = {
 
 export const eventService = {
   // Criar novo evento
-  async createEvent(title, description, start_time, end_time, organizer_id) {
+  async createEvent(title, description, start_time, end_time, organizer_id, is_public = true) {
     const response = await eventsApi.post("/eventos", {
       title,
       description,
       start_time,
       end_time,
-      organizer_id
+      organizer_id,
+      is_public
     });
     return response.data;
   },
@@ -145,12 +146,13 @@ export const eventService = {
   },
 
   // Atualizar evento
-  async updateEvent(id, title, description, start_time, end_time) {
+  async updateEvent(id, title, description, start_time, end_time, is_public = true) {
     const response = await eventsApi.put(`/eventos/${id}`, {
       title,
       description,
       start_time,
-      end_time
+      end_time,
+      is_public
     });
     return response.data;
   },

@@ -94,7 +94,7 @@ async function getUserDetails(userId, token) {
 // 1. Rota POST /eventos (Criação de Evento)
 // ===============================================
 app.post("/eventos", authorize, async (req, res) => {
-    const { title, description, start_time, end_time, organizer_id } = req.body;
+    const { title, description, start_time, end_time, organizer_id, is_public } = req.body;
 
     if (req.userId !== organizer_id) {
          return res.status(403).json({ error: "A criação de evento deve ser feita com o ID do usuário logado." });
@@ -109,8 +109,8 @@ app.post("/eventos", authorize, async (req, res) => {
         await getUserDetails(organizer_id, req.token);
 
         const result = await pool.query(
-            "INSERT INTO eventos (title, description, start_time, end_time, organizer_id) VALUES ($1, $2, $3, $4, $5) RETURNING *",
-            [title, description, start_time, end_time, organizer_id]
+            "INSERT INTO eventos (title, description, start_time, end_time, organizer_id, is_public) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
+            [title, description, start_time, end_time, organizer_id, is_public !== false]
         );
 
         res.status(201).json(result.rows[0]);
@@ -285,9 +285,11 @@ app.put("/eventos/:id", authorize, async (req, res) => {
             return res.status(403).json({ error: "Apenas o organizador pode atualizar o evento." });
         }
 
+        const { is_public } = req.body;
+        
         const result = await pool.query(
-            "UPDATE eventos SET title=$1, description=$2, start_time=$3, end_time=$4 WHERE id=$5 RETURNING *",
-            [title, description, start_time, end_time, id]
+            "UPDATE eventos SET title=$1, description=$2, start_time=$3, end_time=$4, is_public=$5 WHERE id=$6 RETURNING *",
+            [title, description, start_time, end_time, is_public !== false, id]
         );
 
         res.json(result.rows[0]);
@@ -334,10 +336,30 @@ app.post("/eventos/:evento_id/participar", authorize, async (req, res) => {
     const userId = req.userId;
 
     try {
-        // Verifica se o evento existe
-        const eventCheck = await pool.query("SELECT id FROM eventos WHERE id = $1", [evento_id]);
+        // Verifica se o evento existe e se é público
+        const eventCheck = await pool.query(
+            "SELECT id, is_public, organizer_id FROM eventos WHERE id = $1", 
+            [evento_id]
+        );
+        
         if (eventCheck.rows.length === 0) {
             return res.status(404).json({ error: "Evento não encontrado." });
+        }
+
+        const event = eventCheck.rows[0];
+
+        // Se o evento é privado, verifica se o usuário foi convidado
+        if (!event.is_public && event.organizer_id !== userId) {
+            const inviteCheck = await pool.query(
+                "SELECT id FROM participacoes WHERE event_id = $1 AND user_id = $2",
+                [evento_id, userId]
+            );
+
+            if (inviteCheck.rows.length === 0) {
+                return res.status(403).json({ 
+                    error: "Este evento é privado. Você precisa de um convite para participar." 
+                });
+            }
         }
 
         // Insere participação com status 'accepted' (já confirmado)
