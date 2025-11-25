@@ -230,34 +230,45 @@ export default function Dashboard() {
   };
 
   // Abrir modal de convite
-  const openInviteModal = (event) => {
+  const openInviteModal = async (event) => {
     setSelectedEvent(event);
     setSelectedUsers([]);
     setShowInviteModal(true);
+    
+    // Carregar participantes atuais
+    try {
+      const data = await eventService.getEventParticipants(event.id);
+      setParticipants(data);
+    } catch (err) {
+      console.error("Erro ao carregar participantes:", err);
+    }
   };
 
-  // Enviar convites
-  const handleSendInvites = async () => {
-    if (selectedUsers.length === 0) {
-      setError("Selecione pelo menos um usuário para convidar");
-      return;
-    }
-
+  // Convidar usuário individual
+  const handleInviteUser = async (user) => {
     setError("");
     setSuccess("");
-    setLoading(true);
 
     try {
-      await eventService.inviteUsers(selectedEvent.id, selectedUsers);
-      setSuccess(`${selectedUsers.length} convite(s) enviado(s) com sucesso!`);
-      setShowInviteModal(false);
-      setSelectedUsers([]);
-      setSelectedEvent(null);
+      await eventService.inviteUsers(selectedEvent.id, [user.id]);
+      setSuccess(`Convite enviado para ${user.email}!`);
+      
+      // Atualizar lista de participantes
+      if (showParticipantsModal) {
+        await handleViewParticipants(selectedEvent);
+      }
+      
+      // Aguardar um pouco para o usuário ver a mensagem
+      setTimeout(() => {
+        setSuccess("");
+      }, 3000);
     } catch (err) {
-      const msg = err.response?.data?.error || "Erro ao enviar convites";
+      const msg = err.response?.data?.error || "Erro ao enviar convite";
       setError(msg);
-    } finally {
-      setLoading(false);
+      
+      setTimeout(() => {
+        setError("");
+      }, 3000);
     }
   };
 
@@ -374,14 +385,6 @@ export default function Dashboard() {
     navigate("/");
   };
 
-  // Toggle seleção de usuário
-  const toggleUserSelection = (userId) => {
-    setSelectedUsers(prev => 
-      prev.includes(userId)
-        ? prev.filter(id => id !== userId)
-        : [...prev, userId]
-    );
-  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -757,53 +760,88 @@ export default function Dashboard() {
           setSelectedEvent(null);
           setSelectedUsers([]);
         }}
-        title={`Convidar usuários para: ${selectedEvent?.title || ""}`}
+        title={`Convidar pessoas para: ${selectedEvent?.title || ""}`}
       >
         <div className="space-y-4">
           <p className="text-sm text-gray-600">
-            Selecione os usuários que deseja convidar para este evento:
+            Clique em "Convidar" ao lado do usuário que deseja adicionar ao evento:
           </p>
 
-          <div className="max-h-96 overflow-y-auto space-y-2 border rounded-md p-4">
+          <div className="max-h-96 overflow-y-auto space-y-3 border rounded-md p-4">
             {users.length === 0 ? (
               <p className="text-gray-500 text-center py-4">
                 Nenhum outro usuário cadastrado no sistema.
               </p>
             ) : (
-              users.map(user => (
-                <label
-                  key={user.id}
-                  className="flex items-center p-3 hover:bg-gray-50 rounded-md cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedUsers.includes(user.id)}
-                    onChange={() => toggleUserSelection(user.id)}
-                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  />
-                  <span className="ml-3 text-gray-700">{user.email}</span>
-                </label>
-              ))
+              users.map(user => {
+                const participation = participants.find(p => p.id === user.id);
+                const isInvited = !!participation;
+                const status = participation?.status;
+                
+                return (
+                  <div
+                    key={user.id}
+                    className={`flex items-center justify-between p-3 rounded-md border transition ${
+                      isInvited 
+                        ? 'bg-blue-50 border-blue-200' 
+                        : 'bg-gray-50 hover:bg-gray-100 border-gray-200'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold ${
+                        isInvited ? 'bg-blue-600' : 'bg-gray-400'
+                      }`}>
+                        {user.email.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-900">{user.email}</p>
+                        <p className="text-xs text-gray-500">ID: {user.id}</p>
+                        {isInvited && (
+                          <span className={`text-xs font-semibold ${
+                            status === 'accepted' ? 'text-green-600' :
+                            status === 'declined' ? 'text-red-600' :
+                            'text-yellow-600'
+                          }`}>
+                            {status === 'accepted' ? '✓ Confirmado' :
+                             status === 'declined' ? '✗ Recusou' :
+                             '⏱ Pendente'}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleInviteUser(user)}
+                      disabled={isInvited && status === 'accepted'}
+                      className={`px-4 py-2 rounded-md font-semibold text-sm transition flex items-center gap-2 ${
+                        isInvited && status === 'accepted'
+                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                          : 'bg-blue-600 text-white hover:bg-blue-700'
+                      }`}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                      {isInvited 
+                        ? (status === 'accepted' ? 'Já confirmado' : 'Reenviar')
+                        : 'Convidar'
+                      }
+                    </button>
+                  </div>
+                );
+              })
             )}
           </div>
 
-          <div className="flex gap-3 pt-4">
-            <button
-              onClick={handleSendInvites}
-              disabled={loading || selectedUsers.length === 0}
-              className="flex-1 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-semibold disabled:opacity-50"
-            >
-              {loading ? "Enviando..." : `Enviar Convites (${selectedUsers.length})`}
-            </button>
+          <div className="flex gap-3 pt-4 border-t">
             <button
               onClick={() => {
                 setShowInviteModal(false);
                 setSelectedEvent(null);
                 setSelectedUsers([]);
               }}
-              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 font-semibold"
+              className="w-full px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 font-semibold"
             >
-              Cancelar
+              Fechar
             </button>
           </div>
         </div>
