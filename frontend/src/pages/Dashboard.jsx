@@ -146,7 +146,8 @@ export default function Dashboard() {
     setLoading(true);
 
     try {
-      await eventService.createEvent(
+      // Criar o evento
+      const newEvent = await eventService.createEvent(
         eventForm.title,
         eventForm.description,
         eventForm.start_time,
@@ -154,9 +155,22 @@ export default function Dashboard() {
         userId
       );
       
-      setSuccess("Evento criado com sucesso!");
+      // Se há usuários selecionados, enviar convites
+      if (selectedUsers.length > 0) {
+        try {
+          await eventService.inviteUsers(newEvent.id, selectedUsers);
+          setSuccess(`Evento criado e ${selectedUsers.length} convite(s) enviado(s)!`);
+        } catch (inviteErr) {
+          console.error("Erro ao enviar convites:", inviteErr);
+          setSuccess("Evento criado, mas houve erro ao enviar alguns convites.");
+        }
+      } else {
+        setSuccess("Evento criado com sucesso!");
+      }
+      
       setShowCreateModal(false);
       setEventForm({ title: "", description: "", start_time: "", end_time: "" });
+      setSelectedUsers([]);
       await loadEvents();
     } catch (err) {
       const msg = err.response?.data?.error || "Erro ao criar evento";
@@ -242,6 +256,15 @@ export default function Dashboard() {
     } catch (err) {
       console.error("Erro ao carregar participantes:", err);
     }
+  };
+
+  // Toggle seleção de usuário para criar evento
+  const toggleUserForCreation = (userId) => {
+    setSelectedUsers(prev => 
+      prev.includes(userId)
+        ? prev.filter(id => id !== userId)
+        : [...prev, userId]
+    );
   };
 
   // Convidar usuário individual
@@ -588,76 +611,135 @@ export default function Dashboard() {
         onClose={() => {
           setShowCreateModal(false);
           setEventForm({ title: "", description: "", start_time: "", end_time: "" });
+          setSelectedUsers([]);
         }}
         title="Criar Novo Evento"
       >
         <form onSubmit={handleCreateEvent} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Título *
-            </label>
-            <input
-              type="text"
-              value={eventForm.title}
-              onChange={(e) => setEventForm({ ...eventForm, title: e.target.value })}
-              required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Nome do evento"
-            />
+          {/* Informações do Evento */}
+          <div className="space-y-4 pb-4 border-b">
+            <h3 className="font-semibold text-gray-900">📅 Informações do Evento</h3>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Título *
+              </label>
+              <input
+                type="text"
+                value={eventForm.title}
+                onChange={(e) => setEventForm({ ...eventForm, title: e.target.value })}
+                required
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Nome do evento"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Descrição
+              </label>
+              <textarea
+                value={eventForm.description}
+                onChange={(e) => setEventForm({ ...eventForm, description: e.target.value })}
+                rows={2}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Descreva o evento"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Início *
+                </label>
+                <input
+                  type="datetime-local"
+                  value={eventForm.start_time}
+                  onChange={(e) => setEventForm({ ...eventForm, start_time: e.target.value })}
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Fim *
+                </label>
+                <input
+                  type="datetime-local"
+                  value={eventForm.end_time}
+                  onChange={(e) => setEventForm({ ...eventForm, end_time: e.target.value })}
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+            </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Descrição
-            </label>
-            <textarea
-              value={eventForm.description}
-              onChange={(e) => setEventForm({ ...eventForm, description: e.target.value })}
-              rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Descreva o evento"
-            />
+          {/* Convidar Pessoas */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900">👥 Convidar Pessoas (Opcional)</h3>
+              {selectedUsers.length > 0 && (
+                <span className="text-sm bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-semibold">
+                  {selectedUsers.length} selecionado(s)
+                </span>
+              )}
+            </div>
+            
+            <p className="text-xs text-gray-500">
+              Selecione as pessoas que deseja convidar para este evento
+            </p>
+
+            <div className="max-h-60 overflow-y-auto space-y-2 border rounded-md p-3 bg-gray-50">
+              {users.length === 0 ? (
+                <p className="text-gray-500 text-center py-4 text-sm">
+                  Nenhum outro usuário cadastrado.
+                </p>
+              ) : (
+                users.map(user => (
+                  <label
+                    key={user.id}
+                    className={`flex items-center p-2 rounded-md cursor-pointer transition ${
+                      selectedUsers.includes(user.id)
+                        ? 'bg-blue-100 border-2 border-blue-400'
+                        : 'bg-white hover:bg-gray-100 border border-gray-200'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedUsers.includes(user.id)}
+                      onChange={() => toggleUserForCreation(user.id)}
+                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    />
+                    <div className="ml-3 flex items-center space-x-2">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold ${
+                        selectedUsers.includes(user.id) ? 'bg-blue-600' : 'bg-gray-400'
+                      }`}>
+                        {user.email.charAt(0).toUpperCase()}
+                      </div>
+                      <span className="text-sm text-gray-700">{user.email}</span>
+                    </div>
+                  </label>
+                ))
+              )}
+            </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Data e Hora de Início *
-            </label>
-            <input
-              type="datetime-local"
-              value={eventForm.start_time}
-              onChange={(e) => setEventForm({ ...eventForm, start_time: e.target.value })}
-              required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Data e Hora de Fim *
-            </label>
-            <input
-              type="datetime-local"
-              value={eventForm.end_time}
-              onChange={(e) => setEventForm({ ...eventForm, end_time: e.target.value })}
-              required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-
-          <div className="flex gap-3 pt-4">
+          <div className="flex gap-3 pt-4 border-t">
             <button
               type="submit"
               disabled={loading}
               className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-semibold disabled:opacity-50"
             >
-              {loading ? "Criando..." : "Criar Evento"}
+              {loading ? "Criando..." : selectedUsers.length > 0 ? `Criar e Convidar ${selectedUsers.length}` : "Criar Evento"}
             </button>
             <button
               type="button"
               onClick={() => {
                 setShowCreateModal(false);
                 setEventForm({ title: "", description: "", start_time: "", end_time: "" });
+                setSelectedUsers([]);
               }}
               className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 font-semibold"
             >
