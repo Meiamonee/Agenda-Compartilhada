@@ -20,6 +20,14 @@ export default function App() {
             </PrivateRoute>
           }
         />
+        <Route
+          path="/calendar"
+          element={
+            <PrivateRoute>
+              <Dashboard initialView="calendar" />
+            </PrivateRoute>
+          }
+        />
       </Routes>
     </Router>
   );

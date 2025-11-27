@@ -13,7 +13,7 @@ app.use(cors());
 // Variáveis de ambiente
 const servico1Url = process.env.SERVICO1_URL;
 const PORT = process.env.PORT || 3002;
-const JWT_SECRET = process.env.JWT_SECRET || "sua_chave_secreta_aqui"; 
+const JWT_SECRET = process.env.JWT_SECRET || "sua_chave_secreta_aqui";
 
 // =================================
 // Tópico 8: Tolerância a Falhas/Resiliência (Circuit Breaker)
@@ -72,17 +72,17 @@ async function getUserDetails(userId, token) {
         return await circuit.fire(`/usuarios/${userId}`, token);
     } catch (err) {
         if (err.name === 'CircuitBreakerOpenError') {
-             const serviceUnavailable = new Error("Serviço de Usuários temporariamente indisponível (Circuit Breaker Aberto).");
-             serviceUnavailable.status = 503;
-             throw serviceUnavailable;
+            const serviceUnavailable = new Error("Serviço de Usuários temporariamente indisponível (Circuit Breaker Aberto).");
+            serviceUnavailable.status = 503;
+            throw serviceUnavailable;
         }
 
         if (err.response && err.response.status === 404) {
-             const notFound = new Error(`Usuário ${userId} não encontrado.`);
-             notFound.status = 404;
-             throw notFound;
+            const notFound = new Error(`Usuário ${userId} não encontrado.`);
+            notFound.status = 404;
+            throw notFound;
         }
-        
+
         const internalError = new Error("Erro de comunicação com o Serviço de Usuários.");
         internalError.status = 500;
         throw internalError;
@@ -97,13 +97,13 @@ app.post("/eventos", authorize, async (req, res) => {
     const { title, description, start_time, end_time, organizer_id, is_public } = req.body;
 
     if (req.userId !== organizer_id) {
-         return res.status(403).json({ error: "A criação de evento deve ser feita com o ID do usuário logado." });
+        return res.status(403).json({ error: "A criação de evento deve ser feita com o ID do usuário logado." });
     }
-    
+
     if (!title || !start_time || !end_time || !organizer_id) {
         return res.status(400).json({ error: "Campos obrigatórios faltando." });
     }
-    
+
     try {
         // Coordenação: Verifica se o organizador existe (usa Circuit Breaker)
         await getUserDetails(organizer_id, req.token);
@@ -154,10 +154,10 @@ app.post("/eventos/:evento_id/convidar", authorize, async (req, res) => {
             ON CONFLICT (event_id, user_id) DO UPDATE SET status = 'invited' 
             RETURNING *;
         `;
-        
+
         const result = await pool.query(query, params);
 
-        res.status(201).json({ 
+        res.status(201).json({
             message: `${result.rows.length} convite(s) enviado(s) ou atualizado(s) com sucesso.`,
             invites: result.rows
         });
@@ -178,7 +178,7 @@ app.put("/participations/:id", authorize, async (req, res) => {
     if (!['accepted', 'declined'].includes(status)) {
         return res.status(400).json({ error: "Status inválido. Use 'accepted' ou 'declined'." });
     }
-    
+
     try {
         // Coerência: Verifica se a participação pertence ao usuário logado
         const participationCheck = await pool.query("SELECT user_id FROM participacoes WHERE id = $1", [id]);
@@ -217,7 +217,7 @@ app.get("/usuarios/:user_id/convites", authorize, async (req, res) => {
              FROM eventos e
              JOIN participacoes p ON e.id = p.event_id
              WHERE p.user_id = $1 AND p.status = 'invited'
-             ORDER BY e.start_time ASC`, 
+             ORDER BY e.start_time ASC`,
             [user_id]
         );
 
@@ -246,7 +246,7 @@ app.get("/usuarios/:user_id/aceitos", authorize, async (req, res) => {
              FROM eventos e
              JOIN participacoes p ON e.id = p.event_id
              WHERE p.user_id = $1 AND p.status = 'accepted'
-             ORDER BY e.start_time ASC`, 
+             ORDER BY e.start_time ASC`,
             [user_id]
         );
 
@@ -262,21 +262,21 @@ app.get("/usuarios/:user_id/aceitos", authorize, async (req, res) => {
 // 6. Rota GET /eventos (Reuniões Livres / Todos os Eventos)
 // =================================================================
 app.get("/eventos", async (req, res) => {
-    try {
+    try {
         const result = await pool.query("SELECT * FROM eventos ORDER BY start_time ASC");
-        res.json(result.rows);
-    } catch (err) {
-        console.error("Erro ao listar eventos:", err);
-        res.status(500).json({ error: "Erro interno no servidor ao listar eventos." });
-    }
+        res.json(result.rows);
+    } catch (err) {
+        console.error("Erro ao listar eventos:", err);
+        res.status(500).json({ error: "Erro interno no servidor ao listar eventos." });
+    }
 });
 
 // ===============================================
 // 7. Rota PUT /eventos/:id (Atualizar Evento) - Protegida
 // ===============================================
 app.put("/eventos/:id", authorize, async (req, res) => {
-    const { id } = req.params;
-    const { title, description, start_time, end_time } = req.body; 
+    const { id } = req.params;
+    const { title, description, start_time, end_time } = req.body;
     try {
         // Autorização: Verifica se o usuário logado é o organizador
         const checkOrganizer = await pool.query("SELECT organizer_id FROM eventos WHERE id = $1", [id]);
@@ -286,45 +286,45 @@ app.put("/eventos/:id", authorize, async (req, res) => {
         }
 
         const { is_public } = req.body;
-        
+
         const result = await pool.query(
             "UPDATE eventos SET title=$1, description=$2, start_time=$3, end_time=$4, is_public=$5 WHERE id=$6 RETURNING *",
             [title, description, start_time, end_time, is_public !== false, id]
         );
 
-        res.json(result.rows[0]);
-    } catch (err) {
-        console.error("Erro ao atualizar evento:", err);
-        res.status(500).json({ error: "Erro interno no servidor ao atualizar evento." });
-    }
+        res.json(result.rows[0]);
+    } catch (err) {
+        console.error("Erro ao atualizar evento:", err);
+        res.status(500).json({ error: "Erro interno no servidor ao atualizar evento." });
+    }
 });
 
 // ===============================================
 // 8. Rota DELETE /eventos/:id (Deletar Evento) - Protegida
 // ===============================================
 app.delete("/eventos/:id", authorize, async (req, res) => {
-    const { id } = req.params;
-    try {
+    const { id } = req.params;
+    try {
         // Autorização: Verifica se o usuário logado é o organizador
         const checkOrganizer = await pool.query("SELECT organizer_id FROM eventos WHERE id = $1", [id]);
         if (checkOrganizer.rows.length === 0) return res.status(404).json({ error: "Evento não encontrado" });
         if (checkOrganizer.rows[0].organizer_id !== req.userId) {
             return res.status(403).json({ error: "Apenas o organizador pode deletar o evento." });
         }
-        
+
         // Exclui participações relacionadas (para evitar erro de chave estrangeira)
         await pool.query("DELETE FROM participacoes WHERE event_id = $1", [id]);
-        
+
         const result = await pool.query(
             "DELETE FROM eventos WHERE id=$1 RETURNING *",
             [id]
         );
 
-        res.json({ message: "Evento deletado com sucesso", evento: result.rows[0] });
-    } catch (err) {
-        console.error("Erro ao deletar evento:", err);
-        res.status(500).json({ error: "Erro interno no servidor ao deletar evento." });
-    }
+        res.json({ message: "Evento deletado com sucesso", evento: result.rows[0] });
+    } catch (err) {
+        console.error("Erro ao deletar evento:", err);
+        res.status(500).json({ error: "Erro interno no servidor ao deletar evento." });
+    }
 });
 
 
@@ -338,10 +338,10 @@ app.post("/eventos/:evento_id/participar", authorize, async (req, res) => {
     try {
         // Verifica se o evento existe e se é público
         const eventCheck = await pool.query(
-            "SELECT id, is_public, organizer_id FROM eventos WHERE id = $1", 
+            "SELECT id, is_public, organizer_id FROM eventos WHERE id = $1",
             [evento_id]
         );
-        
+
         if (eventCheck.rows.length === 0) {
             return res.status(404).json({ error: "Evento não encontrado." });
         }
@@ -356,8 +356,8 @@ app.post("/eventos/:evento_id/participar", authorize, async (req, res) => {
             );
 
             if (inviteCheck.rows.length === 0) {
-                return res.status(403).json({ 
-                    error: "Este evento é privado. Você precisa de um convite para participar." 
+                return res.status(403).json({
+                    error: "Este evento é privado. Você precisa de um convite para participar."
                 });
             }
         }
@@ -422,18 +422,18 @@ app.delete("/eventos/:evento_id/sair", authorize, async (req, res) => {
 });
 
 app.get("/eventos/:evento_id/participantes", authorize, async (req, res) => {
-    const { evento_id } = req.params;
-    try {
+    const { evento_id } = req.params;
+    try {
         const participantsResult = await pool.query(
             "SELECT user_id, status, id AS participation_id FROM participacoes WHERE event_id = $1",
             [evento_id]
         );
-        
-        if (participantsResult.rows.length === 0) {
-            return res.json([]); 
-        }
 
-        // Coordenação: Obtém detalhes dos participantes usando o Circuit Breaker
+        if (participantsResult.rows.length === 0) {
+            return res.json([]);
+        }
+
+        // Coordenação: Obtém detalhes dos participantes usando o Circuit Breaker
         const participantsWithDetails = await Promise.all(
             participantsResult.rows.map(async (p) => {
                 try {
@@ -448,11 +448,11 @@ app.get("/eventos/:evento_id/participantes", authorize, async (req, res) => {
             })
         );
 
-        res.json(participantsWithDetails);
-    } catch (err) {
-        const statusCode = err.status || 500;
-        res.status(statusCode).json({ error: err.message || "Erro ao listar participantes." });
-    }
+        res.json(participantsWithDetails);
+    } catch (err) {
+        const statusCode = err.status || 500;
+        res.status(statusCode).json({ error: err.message || "Erro ao listar participantes." });
+    }
 });
 
 // =======================

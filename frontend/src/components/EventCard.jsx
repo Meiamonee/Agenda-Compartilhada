@@ -1,148 +1,157 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
+import React from "react";
+import Button from "./Button";
 
-export default function EventCard({ 
-  event, 
+export default function EventCard({
+  event,
   isOrganizer,
   isParticipating,
-  isInvited = false,
-  onEdit, 
-  onDelete, 
-  onInvite, 
+  isInvited,
+  onEdit,
+  onDelete,
+  onInvite,
   onViewParticipants,
   onJoin,
   onLeave
 }) {
-  const [showActions, setShowActions] = useState(false);
-  
-  // Garante que só é público se explicitamente true
-  const isPublic = event.is_public === true;
-  const canParticipate = isPublic || isInvited || isOrganizer;
+  const [showMenu, setShowMenu] = useState(false);
+  const menuRef = useRef(null);
+  const startDate = new Date(event.start_time);
+  const endDate = new Date(event.end_time);
 
-  const formatDateTime = (dateTime) => {
-    if (!dateTime) return "Data não definida";
-    const date = new Date(dateTime);
-    return date.toLocaleString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setShowMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const formatTime = (date) => {
+    return date.toLocaleTimeString("pt-BR", {
       hour: '2-digit',
       minute: '2-digit'
     });
   };
 
+  const getStatusBadge = () => {
+    if (isOrganizer) {
+      return <span className="px-2 py-1 text-xs font-semibold bg-primary-100 text-primary-700 rounded-full">Organizador</span>;
+    }
+    if (isParticipating) {
+      return <span className="px-2 py-1 text-xs font-semibold bg-green-100 text-green-700 rounded-full">Participando</span>;
+    }
+    if (isInvited) {
+      return <span className="px-2 py-1 text-xs font-semibold bg-yellow-100 text-yellow-700 rounded-full">Convidado</span>;
+    }
+    return null;
+  };
+
   return (
-    <div className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-lg transition-shadow">
-      <div className="flex justify-between items-start mb-3">
-        <h3 className="text-xl font-bold text-gray-900">{event.title}</h3>
-        {isOrganizer && (
-          <button 
-            onClick={() => setShowActions(!showActions)}
-            className="text-gray-500 hover:text-gray-700 p-1"
-          >
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-            </svg>
-          </button>
-        )}
+    <div className="bg-white rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow duration-200 overflow-hidden flex flex-col h-full relative">
+      <div className="p-5 flex-1">
+        <div className="flex justify-between items-start mb-4">
+          <div className="bg-primary-50 rounded-lg p-2 text-center min-w-[60px]">
+            <span className="block text-xs font-bold text-primary-600 uppercase">
+              {startDate.toLocaleDateString("pt-BR", { month: 'short' })}
+            </span>
+            <span className="block text-xl font-bold text-gray-900">
+              {startDate.getDate()}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {getStatusBadge()}
+            {!event.is_public && (
+              <span className="px-2 py-1 text-xs font-semibold bg-gray-100 text-gray-600 rounded-full">Privado</span>
+            )}
+
+            {isOrganizer && (
+              <div className="relative" ref={menuRef}>
+                <button
+                  onClick={() => setShowMenu(!showMenu)}
+                  className="p-1 rounded-full hover:bg-gray-100 text-gray-500 transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                  </svg>
+                </button>
+
+                {showMenu && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-100 z-10 py-1 animate-fade-in">
+                    <button
+                      onClick={() => { setShowMenu(false); onEdit(event); }}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                      Editar
+                    </button>
+                    <button
+                      onClick={() => { setShowMenu(false); onInvite(event); }}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                      Convidar
+                    </button>
+                    <button
+                      onClick={() => { setShowMenu(false); onViewParticipants(event); }}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                      Participantes
+                    </button>
+                    <div className="border-t border-gray-100 my-1"></div>
+                    <button
+                      onClick={() => { setShowMenu(false); onDelete(event); }}
+                      className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                      Excluir
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-2 font-heading">
+          {event.title}
+        </h3>
+
+        <p className="text-gray-600 text-sm mb-4 line-clamp-3">
+          {event.description || "Sem descrição"}
+        </p>
+
+        <div className="space-y-2 text-sm text-gray-500">
+          <div className="flex items-center gap-2">
+            <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            <span>
+              {formatTime(startDate)} - {formatTime(endDate)}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+            <span className="truncate">Org: {event.organizer_email}</span>
+          </div>
+        </div>
       </div>
 
-      {event.description && (
-        <p className="text-gray-600 mb-3">{event.description}</p>
-      )}
-
-      <div className="space-y-2 text-sm text-gray-700 mb-4">
-        <div className="flex items-center">
-          <svg className="w-4 h-4 mr-2 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
-          </svg>
-          <span>Início: {formatDateTime(event.start_time)}</span>
-        </div>
-        <div className="flex items-center">
-          <svg className="w-4 h-4 mr-2 text-red-500" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
-          </svg>
-          <span>Fim: {formatDateTime(event.end_time)}</span>
-        </div>
-      </div>
-
-      <div className="flex gap-2 mb-3">
-        {isOrganizer && (
-          <span className="inline-block px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full font-semibold">
-            Organizador
-          </span>
-        )}
-        {isPublic ? (
-          <span className="inline-block px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full font-semibold">
-            Público
-          </span>
-        ) : (
-          <span className="inline-block px-2 py-1 bg-orange-100 text-orange-700 text-xs rounded-full font-semibold">
-            Privado
-          </span>
-        )}
-      </div>
-
-      {showActions && isOrganizer && (
-        <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t">
-          <button
-            onClick={() => onEdit(event)}
-            className="px-3 py-1.5 bg-blue-500 text-white rounded-md hover:bg-blue-600 text-sm"
-          >
-            Editar
-          </button>
-          <button
-            onClick={() => onInvite(event)}
-            className="px-3 py-1.5 bg-green-500 text-white rounded-md hover:bg-green-600 text-sm"
-          >
-            Convidar
-          </button>
-          <button
-            onClick={() => onViewParticipants(event)}
-            className="px-3 py-1.5 bg-purple-500 text-white rounded-md hover:bg-purple-600 text-sm"
-          >
-            Participantes
-          </button>
-          <button
-            onClick={() => onDelete(event)}
-            className="px-3 py-1.5 bg-red-500 text-white rounded-md hover:bg-red-600 text-sm"
-          >
-            Deletar
-          </button>
-        </div>
-      )}
-      
       {!isOrganizer && (
-        <div className="mt-3 space-y-2">
+        <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-end">
           {isParticipating ? (
-            <button
-              onClick={() => onLeave(event)}
-              className="w-full px-3 py-2 bg-red-100 text-red-700 rounded-md hover:bg-red-200 text-sm font-semibold"
-            >
+            <Button variant="danger" size="sm" onClick={() => onLeave(event)}>
               Sair do Evento
-            </button>
+            </Button>
           ) : (
-            <button
-              onClick={() => onJoin(event)}
-              disabled={!canParticipate}
-              className={`w-full px-3 py-2 rounded-md text-sm font-semibold ${
-                canParticipate
-                  ? 'bg-green-500 text-white hover:bg-green-600'
-                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-              }`}
-              title={!canParticipate ? 'Evento privado - Você precisa de um convite' : ''}
-            >
-              {canParticipate ? 'Participar do Evento' : 'Convite Necessário'}
-            </button>
+            <Button variant="primary" size="sm" onClick={() => onJoin(event)}>
+              Participar
+            </Button>
           )}
-          <button
-            onClick={() => onViewParticipants(event)}
-            className="w-full px-3 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 text-sm"
-          >
-            Ver Participantes
-          </button>
         </div>
       )}
     </div>
   );
 }
-

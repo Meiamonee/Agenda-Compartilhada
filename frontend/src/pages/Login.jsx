@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { authService } from "../api/apiService"; 
+import { authService } from "../api/apiService";
+import logo from "../assets/logo.png";
+import Button from "../components/Button";
+import Input from "../components/Input";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -24,22 +27,12 @@ export default function Login() {
     setSucesso("");
     setIsLoading(true);
 
-    console.log("🟢 [LOGIN] Iniciando cadastro...", { nome, email });
-
     try {
       await authService.register(nome, email, senha);
-      console.log("✅ [LOGIN] Cadastro bem-sucedido!");
       setSucesso("Conta criada com sucesso! Faça login 🎉");
-
-      // volta pro login
       setModoCadastro(false);
       limparCampos();
     } catch (err) {
-      console.error("❌ [LOGIN] Erro no cadastro:", err);
-      console.error("❌ [LOGIN] Response data:", err.response?.data);
-      console.error("❌ [LOGIN] Status:", err.response?.status);
-      console.error("❌ [LOGIN] Headers:", err.response?.headers);
-      
       const msg = err.response?.data?.error || err.message || "Erro ao cadastrar.";
       setErro(msg);
     } finally {
@@ -65,124 +58,107 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex bg-gray-50">
+    <div className="min-h-screen flex bg-white">
+      {/* Lado esquerdo - Hero */}
+      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-primary-900">
+        <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop')] bg-cover bg-center opacity-20 mix-blend-overlay"></div>
+        <div className="absolute inset-0 bg-gradient-to-br from-primary-900/90 via-primary-800/90 to-primary-900/90"></div>
 
-      {/* Lado esquerdo igual */}
-      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800">
-          <div className="absolute inset-0 opacity-10">
-            <div className="absolute top-20 left-20 w-32 h-32 border border-white/20 rounded-lg rotate-12"></div>
-            <div className="absolute top-40 right-32 w-24 h-24 border border-white/15 rounded-lg -rotate-6"></div>
-            <div className="absolute bottom-32 left-32 w-40 h-40 border border-white/10 rounded-lg rotate-45"></div>
-          </div>
-        </div>
-        <div className="relative z-10 flex items-center justify-center p-12 w-full">
-          <div className="text-white max-w-md space-y-8">
-            <h1 className="text-2xl font-bold">Agenda Online</h1>
-            <h2 className="text-4xl font-bold leading-tight">
-              Organize sua agenda de forma inteligente
-            </h2>
-            <p className="text-lg text-blue-100 leading-relaxed">
-              Compartilhe compromissos com sua equipe, sincronize calendários e aumente sua produtividade.
+        <div className="relative z-10 flex flex-col justify-center p-16 w-full h-full">
+          <div className="mb-8">
+            <img src={logo} alt="Agenda Logo" className="w-20 h-20 mb-6 drop-shadow-lg" />
+            <h1 className="text-5xl font-bold text-white font-heading mb-6 leading-tight">
+              Organize sua vida <br />
+              <span className="text-primary-300">com inteligência</span>
+            </h1>
+            <p className="text-xl text-primary-100 leading-relaxed max-w-lg">
+              A plataforma completa para gerenciar seus compromissos, compartilhar agendas e aumentar a produtividade da sua equipe.
             </p>
           </div>
         </div>
       </div>
 
-      {/* Form */}
+      {/* Lado direito - Form */}
       <div className="flex-1 flex items-center justify-center p-8 bg-gray-50">
-        <div className="w-full max-w-md space-y-8 p-8 bg-white shadow-xl rounded-lg border border-gray-200">
-
-          <div className="text-center space-y-2">
-            <h2 className="text-3xl font-bold text-gray-900">
-              {modoCadastro ? "Criar conta" : "Bem-vindo"}
+        <div className="w-full max-w-md space-y-8">
+          <div className="text-center">
+            <h2 className="text-3xl font-bold text-gray-900 font-heading">
+              {modoCadastro ? "Criar nova conta" : "Bem-vindo de volta"}
             </h2>
-            <p className="text-gray-600">
-              {modoCadastro 
-                ? "Preencha para criar sua conta"
-                : "Entre com suas credenciais"
+            <p className="mt-2 text-gray-600">
+              {modoCadastro
+                ? "Comece a organizar sua agenda hoje mesmo"
+                : "Entre para acessar seus compromissos"
               }
             </p>
           </div>
 
-          {erro && (
-            <div className="p-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg">{erro}</div>
-          )}
-          {sucesso && (
-            <div className="p-4 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg">{sucesso}</div>
-          )}
+          <div className="bg-white p-8 rounded-2xl shadow-xl shadow-gray-200/50 border border-gray-100">
+            {erro && (
+              <div className="mb-6 p-4 text-sm text-red-700 bg-red-50 border border-red-100 rounded-lg flex items-center animate-fade-in">
+                <span className="mr-2">⚠️</span> {erro}
+              </div>
+            )}
+            {sucesso && (
+              <div className="mb-6 p-4 text-sm text-green-700 bg-green-50 border border-green-100 rounded-lg flex items-center animate-fade-in">
+                <span className="mr-2">✅</span> {sucesso}
+              </div>
+            )}
 
-          <form onSubmit={modoCadastro ? handleCadastro : handleLogin} className="space-y-6">
-            
-            {modoCadastro && (
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">Nome</label>
-                <input
+            <form onSubmit={modoCadastro ? handleCadastro : handleLogin} className="space-y-5">
+              {modoCadastro && (
+                <Input
+                  label="Nome completo"
                   type="text"
                   value={nome}
                   onChange={(e) => setNome(e.target.value)}
                   required
-                  className="w-full h-12 px-3 border rounded-md text-gray-900"
                   placeholder="Seu nome"
                 />
-              </div>
-            )}
+              )}
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">Email</label>
-              <input
+              <Input
+                label="Email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="w-full h-12 px-3 border rounded-md text-gray-900"
                 placeholder="seu@email.com"
               />
-            </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">Senha</label>
-              <input
+              <Input
+                label="Senha"
                 type="password"
                 value={senha}
                 onChange={(e) => setSenha(e.target.value)}
                 required
-                className="w-full h-12 px-3 border rounded-md text-gray-900"
                 placeholder="••••••••"
               />
+
+              <Button
+                type="submit"
+                isLoading={isLoading}
+                className="w-full h-12 text-lg"
+              >
+                {modoCadastro ? "Criar conta gratuita" : "Entrar na plataforma"}
+              </Button>
+            </form>
+
+            <div className="mt-8 pt-6 border-t border-gray-100 text-center">
+              <p className="text-sm text-gray-600">
+                {modoCadastro ? "Já tem uma conta?" : "Ainda não tem conta?"}{" "}
+                <button
+                  onClick={() => {
+                    setModoCadastro(!modoCadastro);
+                    setErro("");
+                    setSucesso("");
+                  }}
+                  className="font-semibold text-primary-600 hover:text-primary-700 transition-colors"
+                >
+                  {modoCadastro ? "Fazer login" : "Criar conta grátis"}
+                </button>
+              </p>
             </div>
-
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-semibold disabled:opacity-50"
-            >
-              {isLoading ? "Processando..." : modoCadastro ? "Criar conta" : "Entrar"}
-            </button>
-          </form>
-
-          <div className="text-center pt-4 border-t">
-            {modoCadastro ? (
-              <p className="text-sm">
-                Já tem conta?{" "}
-                <button
-                  onClick={() => { setModoCadastro(false); setErro(""); setSucesso(""); }}
-                  className="text-blue-600 font-semibold hover:underline"
-                >
-                  Fazer login
-                </button>
-              </p>
-            ) : (
-              <p className="text-sm">
-                Não tem uma conta?{" "}
-                <button
-                  onClick={() => { setModoCadastro(true); setErro(""); setSucesso(""); }}
-                  className="text-blue-600 font-semibold hover:underline"
-                >
-                  Criar conta gratuita
-                </button>
-              </p>
-            )}
           </div>
         </div>
       </div>
