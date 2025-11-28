@@ -5,7 +5,7 @@ const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL || "http://localhost:3001
 const EVENTS_API_URL = import.meta.env.VITE_EVENTS_API_URL || "http://localhost:3002";
 
 // Debug: Mostrar configurações no console
-console.log("🔧 [CONFIG] URLs das APIs:");
+console.log("[CONFIG] URLs das APIs:");
 console.log("  - AUTH_API_URL:", AUTH_API_URL);
 console.log("  - EVENTS_API_URL:", EVENTS_API_URL);
 console.log("  - Variáveis de ambiente:", import.meta.env);
@@ -23,20 +23,20 @@ const eventsApi = axios.create({
 const addAuthInterceptor = (apiInstance) => {
   apiInstance.interceptors.request.use(
     (config) => {
-      console.log("🔵 [INTERCEPTOR] Fazendo requisição:", config.method?.toUpperCase(), config.url);
+      console.log("[INTERCEPTOR] Fazendo requisição:", config.method?.toUpperCase(), config.url);
       const user = JSON.parse(localStorage.getItem("user") || "{}");
       const token = localStorage.getItem("token");
       
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
-        console.log("🔵 [INTERCEPTOR] Token adicionado ao header");
+        console.log("[INTERCEPTOR] Token adicionado ao header");
       } else {
-        console.log("⚠️ [INTERCEPTOR] Sem token - requisição pública");
+        console.log("[INTERCEPTOR] Sem token - requisição pública");
       }
       return config;
     },
     (error) => {
-      console.error("❌ [INTERCEPTOR] Erro na requisição:", error);
+      console.error("[INTERCEPTOR] Erro na requisição:", error);
       return Promise.reject(error);
     }
   );
@@ -44,11 +44,11 @@ const addAuthInterceptor = (apiInstance) => {
   // Interceptor para lidar com erros de autenticação
   apiInstance.interceptors.response.use(
     (response) => {
-      console.log("✅ [INTERCEPTOR] Resposta recebida:", response.status, response.config.url);
+      console.log("[INTERCEPTOR] Resposta recebida:", response.status, response.config.url);
       return response;
     },
     (error) => {
-      console.error("❌ [INTERCEPTOR] Erro na resposta:", {
+      console.error("[INTERCEPTOR] Erro na resposta:", {
         status: error.response?.status,
         url: error.config?.url,
         data: error.response?.data,
@@ -56,7 +56,7 @@ const addAuthInterceptor = (apiInstance) => {
       });
       
       if (error.response?.status === 401 || error.response?.status === 403) {
-        console.warn("⚠️ [INTERCEPTOR] Token inválido - redirecionando para login");
+        console.warn("[INTERCEPTOR] Token inválido - redirecionando para login");
         // Token expirado ou inválido - redireciona para login
         localStorage.removeItem("user");
         localStorage.removeItem("token");
@@ -76,18 +76,18 @@ addAuthInterceptor(eventsApi);
 export const authService = {
   // Registrar novo usuário
   async register(nome, email, senha) {
-    console.log("🔵 [DEBUG] Tentando registrar usuário:", { nome, email });
-    console.log("🔵 [DEBUG] URL da API:", AUTH_API_URL);
+    console.log("[DEBUG] Tentando registrar usuário:", { nome, email });
+    console.log("[DEBUG] URL da API:", AUTH_API_URL);
     
     try {
       const response = await authApi.post("/usuarios", { nome, email, senha });
-      console.log("✅ [DEBUG] Registro bem-sucedido:", response.data);
+      console.log("[DEBUG] Registro bem-sucedido:", response.data);
       return response.data;
     } catch (error) {
-      console.error("❌ [DEBUG] Erro no registro:", error);
-      console.error("❌ [DEBUG] Erro response:", error.response);
-      console.error("❌ [DEBUG] Erro data:", error.response?.data);
-      console.error("❌ [DEBUG] Status:", error.response?.status);
+      console.error("[DEBUG] Erro no registro:", error);
+      console.error("[DEBUG] Erro response:", error.response);
+      console.error("[DEBUG] Erro data:", error.response?.data);
+      console.error("[DEBUG] Status:", error.response?.status);
       throw error;
     }
   },
@@ -179,17 +179,17 @@ export const eventService = {
 
   // Participar de um evento
   async joinEvent(eventoId) {
-    console.log("🔵 [DEBUG] Participando do evento:", eventoId);
+    console.log("[DEBUG] Participando do evento:", eventoId);
     const response = await eventsApi.post(`/eventos/${eventoId}/participar`);
-    console.log("✅ [DEBUG] Participação confirmada:", response.data);
+    console.log("[DEBUG] Participação confirmada:", response.data);
     return response.data;
   },
 
   // Sair de um evento
   async leaveEvent(eventoId) {
-    console.log("🔵 [DEBUG] Saindo do evento:", eventoId);
+    console.log("[DEBUG] Saindo do evento:", eventoId);
     const response = await eventsApi.delete(`/eventos/${eventoId}/sair`);
-    console.log("✅ [DEBUG] Saída confirmada:", response.data);
+    console.log("[DEBUG] Saída confirmada:", response.data);
     return response.data;
   }
 };

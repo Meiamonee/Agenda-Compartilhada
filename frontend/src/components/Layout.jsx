@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { LayoutDashboard, Calendar, LogOut } from 'lucide-react';
 import { authService } from '../api/apiService';
 
 export default function Layout({ children, user, title, actions }) {
@@ -13,8 +14,8 @@ export default function Layout({ children, user, title, actions }) {
     };
 
     const menuItems = [
-        { label: 'Dashboard', path: '/dashboard', icon: '📊' },
-        { label: 'Calendário', path: '/calendar', icon: '📅' },
+        { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+        { label: 'Calendário', path: '/calendar', icon: Calendar },
     ];
 
     return (
@@ -37,7 +38,7 @@ export default function Layout({ children, user, title, actions }) {
                                 : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                                 }`}
                         >
-                            <span className="mr-3 text-lg">{item.icon}</span>
+                            <item.icon className="mr-3 w-5 h-5" />
                             {item.label}
                         </button>
                     ))}
@@ -61,7 +62,7 @@ export default function Layout({ children, user, title, actions }) {
                         onClick={handleLogout}
                         className="w-full flex items-center px-4 py-2 text-sm font-medium text-red-600 rounded-lg hover:bg-red-50 transition-colors"
                     >
-                        <span className="mr-3">🚪</span>
+                        <LogOut className="mr-3 w-5 h-5" />
                         Sair
                     </button>
                 </div>
@@ -86,7 +87,7 @@ export default function Layout({ children, user, title, actions }) {
                             : 'text-gray-400 hover:text-gray-600'
                             }`}
                     >
-                        <span className="text-xl mb-1">{item.icon}</span>
+                        <item.icon className="w-5 h-5 mb-1" />
                         <span className="text-[10px] font-medium">{item.label}</span>
                     </button>
                 ))}
@@ -94,7 +95,7 @@ export default function Layout({ children, user, title, actions }) {
                     onClick={handleLogout}
                     className="flex flex-col items-center p-2 rounded-lg text-gray-400 hover:text-red-600 transition-colors"
                 >
-                    <span className="text-xl mb-1">🚪</span>
+                    <LogOut className="w-5 h-5 mb-1" />
                     <span className="text-[10px] font-medium">Sair</span>
                 </button>
             </div>

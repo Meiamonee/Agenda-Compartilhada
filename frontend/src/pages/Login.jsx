@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { AlertCircle, CheckCircle, PartyPopper } from "lucide-react";
 import { authService } from "../api/apiService";
 import logo from "../assets/logo.png";
 import Button from "../components/Button";
@@ -29,7 +30,7 @@ export default function Login() {
 
     try {
       await authService.register(nome, email, senha);
-      setSucesso("Conta criada com sucesso! Faça login 🎉");
+      setSucesso("Conta criada com sucesso! Faça login");
       setModoCadastro(false);
       limparCampos();
     } catch (err) {
@@ -96,12 +97,12 @@ export default function Login() {
           <div className="bg-white p-8 rounded-2xl shadow-xl shadow-gray-200/50 border border-gray-100">
             {erro && (
               <div className="mb-6 p-4 text-sm text-red-700 bg-red-50 border border-red-100 rounded-lg flex items-center animate-fade-in">
-                <span className="mr-2">⚠️</span> {erro}
+                <AlertCircle className="mr-2 w-5 h-5" /> {erro}
               </div>
             )}
             {sucesso && (
               <div className="mb-6 p-4 text-sm text-green-700 bg-green-50 border border-green-100 rounded-lg flex items-center animate-fade-in">
-                <span className="mr-2">✅</span> {sucesso}
+                <CheckCircle className="mr-2 w-5 h-5" /> {sucesso}
               </div>
             )}
 
