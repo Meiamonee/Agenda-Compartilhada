@@ -194,6 +194,29 @@ app.post("/login", async (req, res) => {
 });
 
 // =======================
+// Listar todos os usuários (da mesma empresa)
+// =======================
+app.get("/usuarios", verifyToken, async (req, res) => {
+    try {
+        // 🛑 Filtra usuários APENAS da empresa do usuário logado
+        const result = await pool.query(
+            "SELECT id, username, is_owner, created_at FROM usuarios WHERE empresa_id = $1 ORDER BY username ASC",
+            [req.empresaId]
+        );
+
+        res.json(result.rows.map(user => ({
+            id: user.id,
+            email: user.username,
+            is_owner: user.is_owner,
+            created_at: user.created_at
+        })));
+    } catch (err) {
+        console.error("Erro ao listar usuários:", err);
+        res.status(500).json({ error: "Erro ao listar usuários." });
+    }
+});
+
+// =======================
 // Buscar usuário por ID (Restrito à própria empresa)
 // =======================
 app.get("/usuarios/:id", verifyToken, async (req, res) => {

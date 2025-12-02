@@ -462,6 +462,119 @@ app.delete("/eventos/:evento_id/participantes/:user_id", authorize, async (req, 
     }
 });
 
+// ====================================================================
+// 5. Rota GET /usuarios/:user_id/convites (Listar Convites de um Usuário)
+// ====================================================================
+app.get("/usuarios/:user_id/convites", authorize, async (req, res) => {
+    const { user_id } = req.params;
+
+    // Segurança: Usuário só pode ver seus próprios convites (ou dono da empresa)
+    if (parseInt(user_id) !== req.userId && !req.isOwner) {
+        return res.status(403).json({ error: "Acesso negado." });
+    }
+
+    try {
+        const result = await pool.query(
+            `SELECT p.*, e.title, e.description, e.start_time, e.end_time, e.organizer_id 
+             FROM participacoes p
+             JOIN eventos e ON p.event_id = e.id
+             WHERE p.user_id = $1 AND p.status = 'invited' AND e.empresa_id = $2`,
+            [user_id, req.empresaId]
+        );
+        res.json(result.rows);
+    } catch (err) {
+        console.error("Erro ao listar convites:", err);
+        res.status(500).json({ error: "Erro interno ao listar convites." });
+    }
+});
+
+// ====================================================================
+// 6. Rota GET /usuarios/:user_id/aceitos (Listar Eventos Aceitos de um Usuário)
+// ====================================================================
+app.get("/usuarios/:user_id/aceitos", authorize, async (req, res) => {
+    const { user_id } = req.params;
+
+    // Segurança: Usuário só pode ver seus próprios eventos (ou dono da empresa)
+    if (parseInt(user_id) !== req.userId && !req.isOwner) {
+        return res.status(403).json({ error: "Acesso negado." });
+    }
+
+    try {
+        const result = await pool.query(
+            `SELECT p.*, e.title, e.description, e.start_time, e.end_time, e.organizer_id 
+             FROM participacoes p
+             JOIN eventos e ON p.event_id = e.id
+             WHERE p.user_id = $1 AND p.status = 'accepted' AND e.empresa_id = $2`,
+            [user_id, req.empresaId]
+        );
+        res.json(result.rows);
+    } catch (err) {
+        console.error("Erro ao listar eventos aceitos:", err);
+        res.status(500).json({ error: "Erro interno ao listar eventos aceitos." });
+    }
+});
+
+// ====================================================================
+// 12. Rota POST /eventos/:id/participar (Participar de um Evento)
+// ====================================================================
+app.post("/eventos/:id/participar", authorize, async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        // Verifica se o evento existe e pertence à empresa
+        const eventCheck = await pool.query("SELECT empresa_id FROM eventos WHERE id = $1", [id]);
+        if (eventCheck.rows.length === 0 || eventCheck.rows[0].empresa_id !== req.empresaId) {
+            return res.status(404).json({ error: "Evento não encontrado nesta empresa." });
+        }
+
+        // Insere ou atualiza participação para 'accepted'
+        const result = await pool.query(
+            `INSERT INTO participacoes (event_id, user_id, status) 
+             VALUES ($1, $2, 'accepted') 
+             ON CONFLICT (event_id, user_id) DO UPDATE SET status = 'accepted' 
+             RETURNING *`,
+            [id, req.userId]
+        );
+
+        res.json({ message: "Participação confirmada!", participation: result.rows[0] });
+
+    } catch (err) {
+        console.error("Erro ao participar do evento:", err);
+        res.status(500).json({ error: "Erro interno ao participar do evento." });
+    }
+});
+
+// ====================================================================
+// 13. Rota DELETE /eventos/:id/sair (Sair de um Evento)
+// ====================================================================
+app.delete("/eventos/:id/sair", authorize, async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        // Verifica se o evento existe e pertence à empresa
+        const eventCheck = await pool.query("SELECT empresa_id FROM eventos WHERE id = $1", [id]);
+        if (eventCheck.rows.length === 0 || eventCheck.rows[0].empresa_id !== req.empresaId) {
+            return res.status(404).json({ error: "Evento não encontrado nesta empresa." });
+        }
+
+        // Remove a participação do usuário logado
+        const result = await pool.query(
+            "DELETE FROM participacoes WHERE event_id = $1 AND user_id = $2 RETURNING *",
+            [id, req.userId]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: "Você não está participando deste evento." });
+        }
+
+        res.json({ message: "Você saiu do evento." });
+
+    } catch (err) {
+        console.error("Erro ao sair do evento:", err);
+        res.status(500).json({ error: "Erro interno ao sair do evento." });
+    }
+});
+
 // =======================
 // Inicializar servidor
 // =======================
