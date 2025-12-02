@@ -26,7 +26,7 @@ const addAuthInterceptor = (apiInstance) => {
       console.log("[INTERCEPTOR] Fazendo requisição:", config.method?.toUpperCase(), config.url);
       const user = JSON.parse(localStorage.getItem("user") || "{}");
       const token = localStorage.getItem("token");
-      
+
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
         console.log("[INTERCEPTOR] Token adicionado ao header");
@@ -54,7 +54,7 @@ const addAuthInterceptor = (apiInstance) => {
         data: error.response?.data,
         message: error.message
       });
-      
+
       if (error.response?.status === 401 || error.response?.status === 403) {
         console.warn("[INTERCEPTOR] Token inválido - redirecionando para login");
         // Token expirado ou inválido - redireciona para login
@@ -74,20 +74,44 @@ addAuthInterceptor(eventsApi);
 // ==================== SERVIÇOS DE AUTENTICAÇÃO ====================
 
 export const authService = {
-  // Registrar novo usuário
+  // Registrar novo usuário (Legado/Interno)
   async register(nome, email, senha) {
     console.log("[DEBUG] Tentando registrar usuário:", { nome, email });
     console.log("[DEBUG] URL da API:", AUTH_API_URL);
-    
+
     try {
       const response = await authApi.post("/usuarios", { nome, email, senha });
       console.log("[DEBUG] Registro bem-sucedido:", response.data);
       return response.data;
     } catch (error) {
       console.error("[DEBUG] Erro no registro:", error);
-      console.error("[DEBUG] Erro response:", error.response);
-      console.error("[DEBUG] Erro data:", error.response?.data);
-      console.error("[DEBUG] Status:", error.response?.status);
+      throw error;
+    }
+  },
+
+  // Registrar nova empresa
+  async registerCompany(nome_empresa, email, senha) {
+    console.log("[DEBUG] Tentando registrar empresa:", { nome_empresa, email });
+
+    try {
+      const response = await authApi.post("/empresas", { nome_empresa, email, senha });
+      console.log("[DEBUG] Registro de empresa bem-sucedido:", response.data);
+      return response.data;
+    } catch (error) {
+      console.error("[DEBUG] Erro no registro de empresa:", error);
+      throw error;
+    }
+  },
+
+  // Criar funcionário (Apenas Dono)
+  async createEmployee(nome, email, senha) {
+    console.log("[DEBUG] Criando funcionário:", { nome, email });
+    try {
+      const response = await authApi.post("/usuarios", { nome, email, senha });
+      console.log("[DEBUG] Funcionário criado:", response.data);
+      return response.data;
+    } catch (error) {
+      console.error("[DEBUG] Erro ao criar funcionário:", error);
       throw error;
     }
   },
@@ -96,11 +120,11 @@ export const authService = {
   async login(email, senha) {
     const response = await authApi.post("/login", { email, senha });
     const { user, token } = response.data;
-    
+
     // Salva token e usuário no localStorage
     localStorage.setItem("user", JSON.stringify(user));
     localStorage.setItem("token", token);
-    
+
     return response.data;
   },
 
@@ -119,6 +143,18 @@ export const authService = {
   // Buscar usuário por ID
   async getUserById(id) {
     const response = await authApi.get(`/usuarios/${id}`);
+    return response.data;
+  },
+
+  // Listar usuários da empresa (para o dono)
+  async getCompanyUsers(empresaId) {
+    const response = await authApi.get(`/empresas/${empresaId}/usuarios`);
+    return response.data;
+  },
+
+  // Deletar funcionário (apenas dono)
+  async deleteEmployee(userId) {
+    const response = await authApi.delete(`/usuarios/${userId}`);
     return response.data;
   }
 };

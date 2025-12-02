@@ -1,6 +1,10 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
-import Dashboard from "./pages/Dashboard"; // Crie este componente
+import RegisterChoice from "./pages/RegisterChoice";
+import RegisterCompany from "./pages/RegisterCompany";
+import RegisterEmployee from "./pages/RegisterEmployee";
+import Dashboard from "./pages/Dashboard";
+import Employees from "./pages/Employees";
 
 function PrivateRoute({ children }) {
   const user = JSON.parse(localStorage.getItem("user"));
@@ -12,6 +16,9 @@ export default function App() {
     <Router>
       <Routes>
         <Route path="/" element={<Login />} />
+        <Route path="/register" element={<RegisterChoice />} />
+        <Route path="/register/company" element={<RegisterCompany />} />
+        <Route path="/register/employee" element={<RegisterEmployee />} />
         <Route
           path="/dashboard"
           element={
@@ -25,6 +32,14 @@ export default function App() {
           element={
             <PrivateRoute>
               <Dashboard initialView="calendar" />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/employees"
+          element={
+            <PrivateRoute>
+              <Employees />
             </PrivateRoute>
           }
         />

@@ -18,6 +18,10 @@ export default function Layout({ children, user, title, actions }) {
         { label: 'Calendário', path: '/calendar', icon: Calendar },
     ];
 
+    if (user?.isOwner) {
+        menuItems.push({ label: 'Funcionários', path: '/employees', icon: LayoutDashboard }); // Usando ícone temporário ou importar Users
+    }
+
     return (
         <div className="min-h-screen bg-gray-50 flex pb-16 lg:pb-0">
             {/* Sidebar Desktop */}

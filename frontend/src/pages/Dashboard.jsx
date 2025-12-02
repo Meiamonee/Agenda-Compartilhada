@@ -27,10 +27,11 @@ export default function Dashboard({ initialView = "list" }) {
   const [acceptedEvents, setAcceptedEvents] = useState([]);
   const [invites, setInvites] = useState([]);
   const [users, setUsers] = useState([]);
+  const [companyUsers, setCompanyUsers] = useState([]); // Novos usuários da empresa
   const [participants, setParticipants] = useState([]);
 
   // Estados de UI
-  const [activeTab, setActiveTab] = useState("all"); // all, my, accepted, invites
+  const [activeTab, setActiveTab] = useState("all"); // all, my, accepted, invites, employees
   const [viewMode, setViewMode] = useState(initialView); // list, calendar
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -41,6 +42,7 @@ export default function Dashboard({ initialView = "list" }) {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showParticipantsModal, setShowParticipantsModal] = useState(false);
+  const [showEmployeeModal, setShowEmployeeModal] = useState(false); // Modal de funcionário
 
   // Estados de formulários
   const [eventForm, setEventForm] = useState({
@@ -49,6 +51,11 @@ export default function Dashboard({ initialView = "list" }) {
     start_date: "",
     start_time: "",
     is_public: true
+  });
+  const [employeeForm, setEmployeeForm] = useState({ // Form de funcionário
+    nome: "",
+    email: "",
+    senha: ""
   });
   const [editingEvent, setEditingEvent] = useState(null);
   const [selectedEvent, setSelectedEvent] = useState(null);
@@ -90,12 +97,19 @@ export default function Dashboard({ initialView = "list" }) {
   const loadAllData = async () => {
     setLoading(true);
     try {
-      await Promise.all([
+      const promises = [
         loadEvents(),
         loadInvites(),
         loadAcceptedEvents(),
         loadUsers()
-      ]);
+      ];
+
+      // Se for dono, carrega funcionários da empresa
+      if (user?.isOwner && user?.empresa_id) {
+        promises.push(loadCompanyUsers(user.empresa_id));
+      }
+
+      await Promise.all(promises);
     } catch (err) {
       console.error("Erro ao carregar dados:", err);
     } finally {
@@ -137,7 +151,7 @@ export default function Dashboard({ initialView = "list" }) {
     }
   };
 
-  // Carregar lista de usuários
+  // Carregar lista de usuários (para convites)
   const loadUsers = async () => {
     try {
       const data = await authService.getAllUsers();
@@ -146,6 +160,16 @@ export default function Dashboard({ initialView = "list" }) {
       setUsers(filteredUsers);
     } catch (err) {
       console.error("Erro ao carregar usuários:", err);
+    }
+  };
+
+  // Carregar usuários da empresa (para gestão)
+  const loadCompanyUsers = async (empresaId) => {
+    try {
+      const data = await authService.getCompanyUsers(empresaId);
+      setCompanyUsers(data);
+    } catch (err) {
+      console.error("Erro ao carregar funcionários:", err);
     }
   };
 
@@ -447,6 +471,54 @@ export default function Dashboard({ initialView = "list" }) {
     return invites.some(e => e.id === eventId) || acceptedEvents.some(e => e.id === eventId);
   };
 
+  // Criar funcionário
+  const handleCreateEmployee = async (e) => {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+    setLoading(true);
+
+    try {
+      await authService.createEmployee(employeeForm.nome, employeeForm.email, employeeForm.senha);
+      setSuccess("Funcionário criado com sucesso!");
+      setShowEmployeeModal(false);
+      setEmployeeForm({ nome: "", email: "", senha: "" });
+      // Recarrega lista de funcionários
+      if (user?.empresa_id) {
+        await loadCompanyUsers(user.empresa_id);
+      }
+    } catch (err) {
+      const msg = err.response?.data?.error || "Erro ao criar funcionário";
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Deletar funcionário
+  const handleDeleteEmployee = async (employeeId) => {
+    if (!window.confirm("Tem certeza que deseja remover este funcionário?")) {
+      return;
+    }
+
+    setError("");
+    setSuccess("");
+    setLoading(true);
+
+    try {
+      await authService.deleteEmployee(employeeId);
+      setSuccess("Funcionário removido com sucesso!");
+      if (user?.empresa_id) {
+        await loadCompanyUsers(user.empresa_id);
+      }
+    } catch (err) {
+      const msg = err.response?.data?.error || "Erro ao remover funcionário";
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const tabs = [
     { id: "all", label: "Todos os Eventos", count: events.length },
     { id: "my", label: "Meus Eventos", count: myEvents.length },
@@ -459,28 +531,32 @@ export default function Dashboard({ initialView = "list" }) {
       user={user}
       title="Dashboard"
       actions={
-        <Button onClick={() => setShowCreateModal(true)}>
-          + Novo Evento
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => setShowCreateModal(true)}>
+            + Novo Evento
+          </Button>
+        </div>
       }
     >
       {/* Feedback Messages */}
-      {(error || success) && (
-        <div className="mb-6 animate-fade-in">
-          {error && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 flex items-center">
-              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-              {error}
-            </div>
-          )}
-          {success && (
-            <div className="p-4 bg-green-50 border border-green-200 rounded-lg text-green-700 flex items-center">
-              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
-              {success}
-            </div>
-          )}
-        </div>
-      )}
+      {
+        (error || success) && (
+          <div className="mb-6 animate-fade-in">
+            {error && (
+              <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 flex items-center">
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                {error}
+              </div>
+            )}
+            {success && (
+              <div className="p-4 bg-green-50 border border-green-200 rounded-lg text-green-700 flex items-center">
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
+                {success}
+              </div>
+            )}
+          </div>
+        )
+      }
 
       {/* Tabs */}
       <div className="mb-8 border-b border-gray-200">
@@ -515,133 +591,132 @@ export default function Dashboard({ initialView = "list" }) {
       </div>
 
       {/* Content Grid */}
-      {loading ? (
-        <div className="flex flex-col items-center justify-center py-20">
-          <div className="w-12 h-12 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin mb-4"></div>
-          <p className="text-gray-500">Carregando seus eventos...</p>
-        </div>
-      ) : viewMode === "calendar" ? (
-        <div className="animate-fade-in">
-          <CalendarView
-            events={[...events, ...acceptedEvents]}
-            onDateClick={(date) => {
-              setEventForm(prev => ({ ...prev, start_date: date.toISOString().split('T')[0] }));
-              setShowCreateModal(true);
-            }}
-            onEventClick={(event) => {
-              if (event.organizer_id === userId) {
-                openEditModal(event);
-              } else {
-                // Show details or join/leave modal could be implemented here
-                // For now just show edit modal if it's their event, or maybe a view modal
-                // Let's just open edit modal if organizer, otherwise maybe nothing or a simple alert for now
-                if (isUserParticipating(event.id)) {
-                  if (window.confirm(`Você está participando de "${event.title}". Deseja sair?`)) {
-                    handleLeaveEvent(event);
-                  }
+      {
+        loading ? (
+          <div className="flex flex-col items-center justify-center py-20">
+            <div className="w-12 h-12 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin mb-4"></div>
+            <p className="text-gray-500">Carregando...</p>
+          </div>
+        ) : viewMode === "calendar" ? (
+          <div className="animate-fade-in">
+            <CalendarView
+              events={[...events, ...acceptedEvents]}
+              onDateClick={(date) => {
+                setEventForm(prev => ({ ...prev, start_date: date.toISOString().split('T')[0] }));
+                setShowCreateModal(true);
+              }}
+              onEventClick={(event) => {
+                if (event.organizer_id === userId) {
+                  openEditModal(event);
                 } else {
-                  if (window.confirm(`Deseja participar de "${event.title}"?`)) {
-                    handleJoinEvent(event);
+                  if (isUserParticipating(event.id)) {
+                    if (window.confirm(`Você está participando de "${event.title}". Deseja sair?`)) {
+                      handleLeaveEvent(event);
+                    }
+                  } else {
+                    if (window.confirm(`Deseja participar de "${event.title}"?`)) {
+                      handleJoinEvent(event);
+                    }
                   }
                 }
-              }
-            }}
-          />
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 animate-fade-in">
-          {activeTab === "all" && (
-            events.length === 0 ? (
-              <div className="col-span-full text-center py-20 bg-white rounded-2xl border border-dashed border-gray-300">
-                <p className="text-gray-500 text-lg">Nenhum evento encontrado.</p>
-                <Button variant="link" onClick={() => setShowCreateModal(true)} className="mt-2">
-                  Crie o primeiro evento agora
-                </Button>
-              </div>
-            ) : (
-              events.map(event => (
-                <EventCard
-                  key={event.id}
-                  event={event}
-                  isOrganizer={event.organizer_id === userId}
-                  isParticipating={isUserParticipating(event.id)}
-                  isInvited={isUserInvited(event.id)}
-                  onEdit={openEditModal}
-                  onDelete={handleDeleteEvent}
-                  onInvite={openInviteModal}
-                  onViewParticipants={handleViewParticipants}
-                  onJoin={handleJoinEvent}
-                  onLeave={handleLeaveEvent}
-                />
-              ))
-            )
-          )}
+              }}
+            />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 animate-fade-in">
+            {activeTab === "all" && (
+              events.length === 0 ? (
+                <div className="col-span-full text-center py-20 bg-white rounded-2xl border border-dashed border-gray-300">
+                  <p className="text-gray-500 text-lg">Nenhum evento encontrado.</p>
+                  <Button variant="link" onClick={() => setShowCreateModal(true)} className="mt-2">
+                    Crie o primeiro evento agora
+                  </Button>
+                </div>
+              ) : (
+                events.map(event => (
+                  <EventCard
+                    key={event.id}
+                    event={event}
+                    isOrganizer={event.organizer_id === userId}
+                    isParticipating={isUserParticipating(event.id)}
+                    isInvited={isUserInvited(event.id)}
+                    onEdit={openEditModal}
+                    onDelete={handleDeleteEvent}
+                    onInvite={openInviteModal}
+                    onViewParticipants={handleViewParticipants}
+                    onJoin={handleJoinEvent}
+                    onLeave={handleLeaveEvent}
+                  />
+                ))
+              )
+            )}
 
-          {activeTab === "my" && (
-            myEvents.length === 0 ? (
-              <div className="col-span-full text-center py-20 bg-white rounded-2xl border border-dashed border-gray-300">
-                <p className="text-gray-500 text-lg">Você ainda não criou eventos.</p>
-                <Button variant="primary" onClick={() => setShowCreateModal(true)} className="mt-4">
-                  Criar Evento
-                </Button>
-              </div>
-            ) : (
-              myEvents.map(event => (
-                <EventCard
-                  key={event.id}
-                  event={event}
-                  isOrganizer={true}
-                  onEdit={openEditModal}
-                  onDelete={handleDeleteEvent}
-                  onInvite={openInviteModal}
-                  onViewParticipants={handleViewParticipants}
-                />
-              ))
-            )
-          )}
+            {activeTab === "my" && (
+              myEvents.length === 0 ? (
+                <div className="col-span-full text-center py-20 bg-white rounded-2xl border border-dashed border-gray-300">
+                  <p className="text-gray-500 text-lg">Você ainda não criou eventos.</p>
+                  <Button variant="primary" onClick={() => setShowCreateModal(true)} className="mt-4">
+                    Criar Evento
+                  </Button>
+                </div>
+              ) : (
+                myEvents.map(event => (
+                  <EventCard
+                    key={event.id}
+                    event={event}
+                    isOrganizer={true}
+                    onEdit={openEditModal}
+                    onDelete={handleDeleteEvent}
+                    onInvite={openInviteModal}
+                    onViewParticipants={handleViewParticipants}
+                  />
+                ))
+              )
+            )}
 
-          {activeTab === "accepted" && (
-            acceptedEvents.length === 0 ? (
-              <div className="col-span-full text-center py-20 bg-white rounded-2xl border border-dashed border-gray-300">
-                <p className="text-gray-500 text-lg">Nenhum evento confirmado na sua agenda.</p>
-              </div>
-            ) : (
-              acceptedEvents.map(event => (
-                <EventCard
-                  key={event.id}
-                  event={event}
-                  isOrganizer={event.organizer_id === userId}
-                  isParticipating={true}
-                  isInvited={true}
-                  onEdit={openEditModal}
-                  onDelete={handleDeleteEvent}
-                  onInvite={openInviteModal}
-                  onViewParticipants={handleViewParticipants}
-                  onJoin={handleJoinEvent}
-                  onLeave={handleLeaveEvent}
-                />
-              ))
-            )
-          )}
+            {activeTab === "accepted" && (
+              acceptedEvents.length === 0 ? (
+                <div className="col-span-full text-center py-20 bg-white rounded-2xl border border-dashed border-gray-300">
+                  <p className="text-gray-500 text-lg">Nenhum evento confirmado na sua agenda.</p>
+                </div>
+              ) : (
+                acceptedEvents.map(event => (
+                  <EventCard
+                    key={event.id}
+                    event={event}
+                    isOrganizer={event.organizer_id === userId}
+                    isParticipating={true}
+                    isInvited={true}
+                    onEdit={openEditModal}
+                    onDelete={handleDeleteEvent}
+                    onInvite={openInviteModal}
+                    onViewParticipants={handleViewParticipants}
+                    onJoin={handleJoinEvent}
+                    onLeave={handleLeaveEvent}
+                  />
+                ))
+              )
+            )}
 
-          {activeTab === "invites" && (
-            invites.length === 0 ? (
-              <div className="col-span-full text-center py-20 bg-white rounded-2xl border border-dashed border-gray-300">
-                <p className="text-gray-500 text-lg">Nenhum convite pendente.</p>
-              </div>
-            ) : (
-              invites.map(invite => (
-                <InviteCard
-                  key={invite.participation_id}
-                  invite={invite}
-                  onAccept={handleAcceptInvite}
-                  onDecline={handleDeclineInvite}
-                />
-              ))
-            )
-          )}
-        </div>
-      )}
+            {activeTab === "invites" && (
+              invites.length === 0 ? (
+                <div className="col-span-full text-center py-20 bg-white rounded-2xl border border-dashed border-gray-300">
+                  <p className="text-gray-500 text-lg">Nenhum convite pendente.</p>
+                </div>
+              ) : (
+                invites.map(invite => (
+                  <InviteCard
+                    key={invite.participation_id}
+                    invite={invite}
+                    onAccept={handleAcceptInvite}
+                    onDecline={handleDeclineInvite}
+                  />
+                ))
+              )
+            )}
+          </div>
+        )
+      }
 
       {/* Modals */}
       <Modal
@@ -894,6 +969,6 @@ export default function Dashboard({ initialView = "list" }) {
           )}
         </div>
       </Modal>
-    </Layout>
+    </Layout >
   );
 }

@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { AlertCircle, CheckCircle, PartyPopper } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { AlertCircle, CheckCircle } from "lucide-react";
 import { authService } from "../api/apiService";
 import logo from "../assets/logo.png";
 import Button from "../components/Button";
@@ -9,37 +9,17 @@ import Input from "../components/Input";
 export default function Login() {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
-  const [nome, setNome] = useState("");
   const [erro, setErro] = useState("");
   const [sucesso, setSucesso] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [modoCadastro, setModoCadastro] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
 
-  const limparCampos = () => {
-    setEmail("");
-    setSenha("");
-    setNome("");
-  };
-
-  const handleCadastro = async (e) => {
-    e.preventDefault();
-    setErro("");
-    setSucesso("");
-    setIsLoading(true);
-
-    try {
-      await authService.register(nome, email, senha);
-      setSucesso("Conta criada com sucesso! Faça login");
-      setModoCadastro(false);
-      limparCampos();
-    } catch (err) {
-      const msg = err.response?.data?.error || err.message || "Erro ao cadastrar.";
-      setErro(msg);
-    } finally {
-      setIsLoading(false);
+  useEffect(() => {
+    if (location.state?.message) {
+      setSucesso(location.state.message);
     }
-  };
+  }, [location]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -84,13 +64,10 @@ export default function Login() {
         <div className="w-full max-w-md space-y-8">
           <div className="text-center">
             <h2 className="text-3xl font-bold text-gray-900 font-heading">
-              {modoCadastro ? "Criar nova conta" : "Bem-vindo de volta"}
+              Bem-vindo de volta
             </h2>
             <p className="mt-2 text-gray-600">
-              {modoCadastro
-                ? "Comece a organizar sua agenda hoje mesmo"
-                : "Entre para acessar seus compromissos"
-              }
+              Entre para acessar seus compromissos
             </p>
           </div>
 
@@ -106,18 +83,7 @@ export default function Login() {
               </div>
             )}
 
-            <form onSubmit={modoCadastro ? handleCadastro : handleLogin} className="space-y-5">
-              {modoCadastro && (
-                <Input
-                  label="Nome completo"
-                  type="text"
-                  value={nome}
-                  onChange={(e) => setNome(e.target.value)}
-                  required
-                  placeholder="Seu nome"
-                />
-              )}
-
+            <form onSubmit={handleLogin} className="space-y-5">
               <Input
                 label="Email"
                 type="email"
@@ -141,22 +107,18 @@ export default function Login() {
                 isLoading={isLoading}
                 className="w-full h-12 text-lg"
               >
-                {modoCadastro ? "Criar conta gratuita" : "Entrar na plataforma"}
+                Entrar na plataforma
               </Button>
             </form>
 
             <div className="mt-8 pt-6 border-t border-gray-100 text-center">
               <p className="text-sm text-gray-600">
-                {modoCadastro ? "Já tem uma conta?" : "Ainda não tem conta?"}{" "}
+                Ainda não tem conta?{" "}
                 <button
-                  onClick={() => {
-                    setModoCadastro(!modoCadastro);
-                    setErro("");
-                    setSucesso("");
-                  }}
+                  onClick={() => navigate("/register")}
                   className="font-semibold text-primary-600 hover:text-primary-700 transition-colors"
                 >
-                  {modoCadastro ? "Fazer login" : "Criar conta grátis"}
+                  Criar conta grátis
                 </button>
               </p>
             </div>
