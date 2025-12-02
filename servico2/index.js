@@ -173,179 +173,117 @@ app.post("/eventos/:evento_id/convidar", authorize, async (req, res) => {
 // ====================================================================
 app.put("/participations/:id", authorize, async (req, res) => {
     const { id } = req.params;
-    const { status } = req.body;
-
-    if (!['accepted', 'declined'].includes(status)) {
-        return res.status(400).json({ error: "Status inválido. Use 'accepted' ou 'declined'." });
-    }
+    const { title, description, start_time, end_time, is_public } = req.body;
 
     try {
-        // Autorização: Verifica se a participação pertence ao usuário logado
-        const participationCheck = await pool.query("SELECT user_id FROM participacoes WHERE id = $1", [id]);
-        if (participationCheck.rows.length === 0 || participationCheck.rows[0].user_id !== req.userId) {
-            return res.status(403).json({ error: "Você não tem permissão para modificar esta participação." });
-        }
-
-        const result = await pool.query(
-            "UPDATE participacoes SET status = $1 WHERE id = $2 RETURNING *",
-            [status, id]
+        // Autorização: Verifica se o evento existe, pertence à empresa e se o usuário é o organizador
+        const eventCheck = await pool.query(
+            "SELECT organizer_id, empresa_id FROM eventos WHERE id = $1",
+            [id]
         );
 
-        res.json({ message: `Status atualizado para: ${status}`, participacao: result.rows[0] });
+        if (eventCheck.rows.length === 0 || eventCheck.rows[0].empresa_id !== req.empresaId) {
+            return res.status(404).json({ error: "Evento não encontrado nesta empresa." });
+        }
+
+        if (eventCheck.rows[0].organizer_id !== req.userId) {
+            return res.status(403).json({ error: "Apenas o organizador pode atualizar este evento." });
+        }
+
+        // Atualiza apenas os campos fornecidos
+        const updates = [];
+        const values = [];
+        let paramCount = 1;
+
+        if (title !== undefined) {
+            updates.push(`title = $${paramCount++}`);
+            values.push(title);
+        }
+        if (description !== undefined) {
+            updates.push(`description = $${paramCount++}`);
+            values.push(description);
+        }
+        if (start_time !== undefined) {
+            updates.push(`start_time = $${paramCount++}`);
+            values.push(start_time);
+        }
+        if (end_time !== undefined) {
+            updates.push(`end_time = $${paramCount++}`);
+            values.push(end_time);
+        }
+        if (is_public !== undefined) {
+            updates.push(`is_public = $${paramCount++}`);
+            values.push(is_public);
+        }
+
+        if (updates.length === 0) {
+            return res.status(400).json({ error: "Nenhum campo para atualizar foi fornecido." });
+        }
+
+        values.push(id);
+        const query = `UPDATE eventos SET ${updates.join(', ')} WHERE id = $${paramCount} RETURNING *`;
+
+        const result = await pool.query(query, values);
+        res.json({ message: "Evento atualizado com sucesso.", evento: result.rows[0] });
+
     } catch (err) {
-        console.error("Erro ao atualizar status de participação:", err);
-        // =================================================================
-        app.get("/eventos", authorize, async (req, res) => {
-            try {
-                // 🛑 Filtra todos os eventos APENAS pela empresa do usuário logado
-                const result = await pool.query("SELECT * FROM eventos WHERE empresa_id = $1 ORDER BY start_time ASC", [req.empresaId]);
-                res.json(result.rows);
-            } catch (err) {
-                console.error("Erro ao listar eventos:", err);
-                res.status(500).json({ error: "Erro interno no servidor ao listar eventos." });
-            }
-        });
+        console.error("Erro ao atualizar evento:", err);
+        res.status(500).json({ error: "Erro interno ao atualizar evento." });
+    }
+});
 
-        // ====================================================================
-        // 7. Rota GET /eventos/:id (Detalhes de um Evento Específico) - ISOLADA
-        // ====================================================================
-        app.get("/eventos/:id", authorize, async (req, res) => {
-            const { id } = req.params;
+// ====================================================================
+// 9. Rota DELETE /eventos/:id (Deletar Evento) - ISOLADA
+// ====================================================================
+app.delete("/eventos/:id", authorize, async (req, res) => {
+    const { id } = req.params;
 
-            try {
-                // 🛑 Filtra o evento pelo ID e pela empresa do usuário logado
-                const result = await pool.query(
-                    "SELECT * FROM eventos WHERE id = $1 AND empresa_id = $2",
-                    [id, req.empresaId]
-                );
+    try {
+        // Autorização: Verifica se o evento existe, pertence à empresa e se o usuário é o organizador
+        const eventCheck = await pool.query(
+            "SELECT organizer_id, empresa_id FROM eventos WHERE id = $1",
+            [id]
+        );
 
-                if (result.rows.length === 0) {
-                    return res.status(404).json({ error: "Evento não encontrado nesta empresa." });
-                }
+        if (eventCheck.rows.length === 0 || eventCheck.rows[0].empresa_id !== req.empresaId) {
+            return res.status(404).json({ error: "Evento não encontrado nesta empresa." });
+        }
 
-                res.json(result.rows[0]);
-            } catch (err) {
-                console.error("Erro ao buscar evento:", err);
-                res.status(500).json({ error: "Erro interno ao buscar evento." });
-            }
-        });
+        if (eventCheck.rows[0].organizer_id !== req.userId) {
+            return res.status(403).json({ error: "Apenas o organizador pode deletar este evento." });
+        }
 
-        // ====================================================================
-        // 8. Rota PUT /eventos/:id (Atualizar Evento) - ISOLADA
-        // ====================================================================
-        app.put("/eventos/:id", authorize, async (req, res) => {
-            const { id } = req.params;
-            const { title, description, start_time, end_time, is_public } = req.body;
+        // Deleta o evento (CASCADE vai deletar as participações automaticamente)
+        await pool.query("DELETE FROM eventos WHERE id = $1", [id]);
 
-            try {
-                // Autorização: Verifica se o evento existe, pertence à empresa e se o usuário é o organizador
-                const eventCheck = await pool.query(
-                    "SELECT organizer_id, empresa_id FROM eventos WHERE id = $1",
-                    [id]
-                );
+        res.json({ message: "Evento deletado com sucesso." });
 
-                if (eventCheck.rows.length === 0 || eventCheck.rows[0].empresa_id !== req.empresaId) {
-                    return res.status(404).json({ error: "Evento não encontrado nesta empresa." });
-                }
+    } catch (err) {
+        console.error("Erro ao deletar evento:", err);
+        res.status(500).json({ error: "Erro interno ao deletar evento." });
+    }
+});
 
-                if (eventCheck.rows[0].organizer_id !== req.userId) {
-                    return res.status(403).json({ error: "Apenas o organizador pode atualizar este evento." });
-                }
+// ====================================================================
+// 10. Rota GET /eventos/:id/participantes (Listar Participantes) - ISOLADA
+// ====================================================================
+app.get("/eventos/:id/participantes", authorize, async (req, res) => {
+    const { id } = req.params;
 
-                // Atualiza apenas os campos fornecidos
-                const updates = [];
-                const values = [];
-                let paramCount = 1;
+    try {
+        // Verifica se o evento existe e pertence à empresa do usuário
+        const eventCheck = await pool.query(
+            "SELECT id, empresa_id FROM eventos WHERE id = $1",
+            [id]
+        );
 
-                if (title !== undefined) {
-                    updates.push(`title = $${paramCount++}`);
-                    values.push(title);
-                }
-                if (description !== undefined) {
-                    updates.push(`description = $${paramCount++}`);
-                    values.push(description);
-                }
-                if (start_time !== undefined) {
-                    updates.push(`start_time = $${paramCount++}`);
-                    values.push(start_time);
-                }
-                if (end_time !== undefined) {
-                    updates.push(`end_time = $${paramCount++}`);
-                    values.push(end_time);
-                }
-                if (is_public !== undefined) {
-                    updates.push(`is_public = $${paramCount++}`);
-                    values.push(is_public);
-                }
+        if (eventCheck.rows.length === 0 || eventCheck.rows[0].empresa_id !== req.empresaId) {
+            return res.status(404).json({ error: "Evento não encontrado nesta empresa." });
+        }
 
-                if (updates.length === 0) {
-                    return res.status(400).json({ error: "Nenhum campo para atualizar foi fornecido." });
-                }
-
-                values.push(id);
-                const query = `UPDATE eventos SET ${updates.join(', ')} WHERE id = $${paramCount} RETURNING *`;
-
-                const result = await pool.query(query, values);
-                res.json({ message: "Evento atualizado com sucesso.", evento: result.rows[0] });
-
-            } catch (err) {
-                console.error("Erro ao atualizar evento:", err);
-                res.status(500).json({ error: "Erro interno ao atualizar evento." });
-            }
-        });
-
-        // ====================================================================
-        // 9. Rota DELETE /eventos/:id (Deletar Evento) - ISOLADA
-        // ====================================================================
-        app.delete("/eventos/:id", authorize, async (req, res) => {
-            const { id } = req.params;
-
-            try {
-                // Autorização: Verifica se o evento existe, pertence à empresa e se o usuário é o organizador
-                const eventCheck = await pool.query(
-                    "SELECT organizer_id, empresa_id FROM eventos WHERE id = $1",
-                    [id]
-                );
-
-                if (eventCheck.rows.length === 0 || eventCheck.rows[0].empresa_id !== req.empresaId) {
-                    return res.status(404).json({ error: "Evento não encontrado nesta empresa." });
-                }
-
-                if (eventCheck.rows[0].organizer_id !== req.userId) {
-                    return res.status(403).json({ error: "Apenas o organizador pode deletar este evento." });
-                }
-
-                // Deleta o evento (CASCADE vai deletar as participações automaticamente)
-                await pool.query("DELETE FROM eventos WHERE id = $1", [id]);
-
-                res.json({ message: "Evento deletado com sucesso." });
-
-            } catch (err) {
-                console.error("Erro ao deletar evento:", err);
-                res.status(500).json({ error: "Erro interno ao deletar evento." });
-            }
-        });
-
-        // ====================================================================
-        // 10. Rota GET /eventos/:id/participantes (Listar Participantes) - ISOLADA
-        // ====================================================================
-        app.get("/eventos/:id/participantes", authorize, async (req, res) => {
-            const { id } = req.params;
-
-            try {
-                // Verifica se o evento existe e pertence à empresa do usuário
-                const eventCheck = await pool.query(
-                    "SELECT id, empresa_id FROM eventos WHERE id = $1",
-                    [id]
-                );
-
-                if (eventCheck.rows.length === 0 || eventCheck.rows[0].empresa_id !== req.empresaId) {
-                    return res.status(404).json({ error: "Evento não encontrado nesta empresa." });
-                }
-
-                // Lista todos os participantes do evento
-                const participantsResult = await pool.query(
-                    `SELECT 
+        // Lista todos os participantes do evento
+        const participantsResult = await pool.query(
+            `SELECT 
                 p.id AS participation_id,
                 p.user_id,
                 p.status,
@@ -353,76 +291,76 @@ app.put("/participations/:id", authorize, async (req, res) => {
              FROM participacoes p
              WHERE p.event_id = $1
              ORDER BY p.status, p.id`,
-                    [id]
-                );
+            [id]
+        );
 
-                // Busca detalhes dos usuários do Serviço 1
-                const participantsWithDetails = await Promise.all(
-                    participantsResult.rows.map(async (participant) => {
-                        try {
-                            const userDetails = await getUserDetails(participant.user_id, req.token);
-                            return {
-                                ...participant,
-                                user_email: userDetails.email
-                            };
-                        } catch (err) {
-                            // Se não conseguir buscar detalhes, retorna sem email
-                            return {
-                                ...participant,
-                                user_email: "Usuário não encontrado"
-                            };
-                        }
-                    })
-                );
-
-                res.json(participantsWithDetails);
-
-            } catch (err) {
-                console.error("Erro ao listar participantes:", err);
-                res.status(500).json({ error: "Erro interno ao listar participantes." });
-            }
-        });
-
-        // ====================================================================
-        // 11. Rota DELETE /eventos/:evento_id/participantes/:user_id (Remover Participante) - ISOLADA
-        // ====================================================================
-        app.delete("/eventos/:evento_id/participantes/:user_id", authorize, async (req, res) => {
-            const { evento_id, user_id } = req.params;
-
-            try {
-                // Autorização: Verifica se o evento existe, pertence à empresa e se o usuário é o organizador
-                const eventCheck = await pool.query(
-                    "SELECT organizer_id, empresa_id FROM eventos WHERE id = $1",
-                    [evento_id]
-                );
-
-                if (eventCheck.rows.length === 0 || eventCheck.rows[0].empresa_id !== req.empresaId) {
-                    return res.status(404).json({ error: "Evento não encontrado nesta empresa." });
+        // Busca detalhes dos usuários do Serviço 1
+        const participantsWithDetails = await Promise.all(
+            participantsResult.rows.map(async (participant) => {
+                try {
+                    const userDetails = await getUserDetails(participant.user_id, req.token);
+                    return {
+                        ...participant,
+                        user_email: userDetails.email
+                    };
+                } catch (err) {
+                    // Se não conseguir buscar detalhes, retorna sem email
+                    return {
+                        ...participant,
+                        user_email: "Usuário não encontrado"
+                    };
                 }
+            })
+        );
 
-                if (eventCheck.rows[0].organizer_id !== req.userId) {
-                    return res.status(403).json({ error: "Apenas o organizador pode remover participantes." });
-                }
+        res.json(participantsWithDetails);
 
-                // Remove a participação
-                const result = await pool.query(
-                    "DELETE FROM participacoes WHERE event_id = $1 AND user_id = $2 RETURNING *",
-                    [evento_id, user_id]
-                );
+    } catch (err) {
+        console.error("Erro ao listar participantes:", err);
+        res.status(500).json({ error: "Erro interno ao listar participantes." });
+    }
+});
 
-                if (result.rows.length === 0) {
-                    return res.status(404).json({ error: "Participação não encontrada." });
-                }
+// ====================================================================
+// 11. Rota DELETE /eventos/:evento_id/participantes/:user_id (Remover Participante) - ISOLADA
+// ====================================================================
+app.delete("/eventos/:evento_id/participantes/:user_id", authorize, async (req, res) => {
+    const { evento_id, user_id } = req.params;
 
-                res.json({ message: "Participante removido com sucesso." });
+    try {
+        // Autorização: Verifica se o evento existe, pertence à empresa e se o usuário é o organizador
+        const eventCheck = await pool.query(
+            "SELECT organizer_id, empresa_id FROM eventos WHERE id = $1",
+            [evento_id]
+        );
 
-            } catch (err) {
-                console.error("Erro ao remover participante:", err);
-                res.status(500).json({ error: "Erro interno ao remover participante." });
-            }
-        });
+        if (eventCheck.rows.length === 0 || eventCheck.rows[0].empresa_id !== req.empresaId) {
+            return res.status(404).json({ error: "Evento não encontrado nesta empresa." });
+        }
 
-        // =======================
-        // Inicializar servidor
-        // =======================
-        app.listen(PORT, () => console.log(`🚀 Serviço de eventos rodando na porta ${PORT}`));
+        if (eventCheck.rows[0].organizer_id !== req.userId) {
+            return res.status(403).json({ error: "Apenas o organizador pode remover participantes." });
+        }
+
+        // Remove a participação
+        const result = await pool.query(
+            "DELETE FROM participacoes WHERE event_id = $1 AND user_id = $2 RETURNING *",
+            [evento_id, user_id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: "Participação não encontrada." });
+        }
+
+        res.json({ message: "Participante removido com sucesso." });
+
+    } catch (err) {
+        console.error("Erro ao remover participante:", err);
+        res.status(500).json({ error: "Erro interno ao remover participante." });
+    }
+});
+
+// =======================
+// Inicializar servidor
+// =======================
+app.listen(PORT, () => console.log(`🚀 Serviço de eventos rodando na porta ${PORT}`));
