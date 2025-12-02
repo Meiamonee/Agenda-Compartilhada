@@ -232,6 +232,108 @@ app.put("/participations/:id", authorize, async (req, res) => {
     }
 });
 
+// =================================================================
+// 4. Rota GET /eventos (Listar Eventos da Empresa)
+// =================================================================
+app.get("/eventos", authorize, async (req, res) => {
+    try {
+        // 🛑 Filtra todos os eventos APENAS pela empresa do usuário logado
+        const result = await pool.query("SELECT * FROM eventos WHERE empresa_id = $1 ORDER BY start_time ASC", [req.empresaId]);
+        res.json(result.rows);
+    } catch (err) {
+        console.error("Erro ao listar eventos:", err);
+        res.status(500).json({ error: "Erro interno no servidor ao listar eventos." });
+    }
+});
+
+// ====================================================================
+// 7. Rota GET /eventos/:id (Detalhes de um Evento Específico) - ISOLADA
+// ====================================================================
+app.get("/eventos/:id", authorize, async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        // 🛑 Filtra o evento pelo ID e pela empresa do usuário logado
+        const result = await pool.query(
+            "SELECT * FROM eventos WHERE id = $1 AND empresa_id = $2",
+            [id, req.empresaId]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: "Evento não encontrado nesta empresa." });
+        }
+
+        res.json(result.rows[0]);
+    } catch (err) {
+        console.error("Erro ao buscar evento:", err);
+        res.status(500).json({ error: "Erro interno ao buscar evento." });
+    }
+});
+
+// ====================================================================
+// 8. Rota PUT /eventos/:id (Atualizar Evento) - ISOLADA
+// ====================================================================
+app.put("/eventos/:id", authorize, async (req, res) => {
+    const { id } = req.params;
+    const { title, description, start_time, end_time, is_public } = req.body;
+
+    try {
+        // Autorização: Verifica se o evento existe, pertence à empresa e se o usuário é o organizador
+        const eventCheck = await pool.query(
+            "SELECT organizer_id, empresa_id FROM eventos WHERE id = $1",
+            [id]
+        );
+
+        if (eventCheck.rows.length === 0 || eventCheck.rows[0].empresa_id !== req.empresaId) {
+            return res.status(404).json({ error: "Evento não encontrado nesta empresa." });
+        }
+
+        if (eventCheck.rows[0].organizer_id !== req.userId) {
+            return res.status(403).json({ error: "Apenas o organizador pode atualizar este evento." });
+        }
+
+        // Atualiza apenas os campos fornecidos
+        const updates = [];
+        const values = [];
+        let paramCount = 1;
+
+        if (title !== undefined) {
+            updates.push(`title = $${paramCount++}`);
+            values.push(title);
+        }
+        if (description !== undefined) {
+            updates.push(`description = $${paramCount++}`);
+            values.push(description);
+        }
+        if (start_time !== undefined) {
+            updates.push(`start_time = $${paramCount++}`);
+            values.push(start_time);
+        }
+        if (end_time !== undefined) {
+            updates.push(`end_time = $${paramCount++}`);
+            values.push(end_time);
+        }
+        if (is_public !== undefined) {
+            updates.push(`is_public = $${paramCount++}`);
+            values.push(is_public);
+        }
+
+        if (updates.length === 0) {
+            return res.status(400).json({ error: "Nenhum campo para atualizar foi fornecido." });
+        }
+
+        values.push(id);
+        const query = `UPDATE eventos SET ${updates.join(', ')} WHERE id = $${paramCount} RETURNING *`;
+
+        const result = await pool.query(query, values);
+        res.json({ message: "Evento atualizado com sucesso.", evento: result.rows[0] });
+
+    } catch (err) {
+        console.error("Erro ao atualizar evento:", err);
+        res.status(500).json({ error: "Erro interno ao atualizar evento." });
+    }
+});
+
 // ====================================================================
 // 9. Rota DELETE /eventos/:id (Deletar Evento) - ISOLADA
 // ====================================================================
