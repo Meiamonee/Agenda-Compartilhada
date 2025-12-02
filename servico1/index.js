@@ -1,5 +1,5 @@
 const express = require("express");
-const pool = require("./Banco/db"); // Assumindo um arquivo db.js com a conexão
+const pool = require("./Banco/db");
 const cors = require("cors");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
@@ -14,7 +14,7 @@ const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || "sua_chave_secreta_aqui";
 
 // =======================
-// Testar conexão com o banco
+// Testar conexão com o banco...
 // =======================
 (async () => {
   try {
@@ -37,8 +37,11 @@ const verifyToken = (req, res, next) => {
     const token = authHeader.split(" ")[1];
 
     try {
+        // O token agora decodifica o ID da empresa e o status de dono
         const decoded = jwt.verify(token, JWT_SECRET);
         req.userId = decoded.userId;
+        req.empresaId = decoded.empresaId;
+        req.isOwner = decoded.isOwner;
         next();
     } catch (err) {
         return res.status(403).json({ error: "Token inválido ou expirado." });
@@ -46,105 +49,168 @@ const verifyToken = (req, res, next) => {
 };
 
 // =======================
-// Registro de usuário
+// 🟢 NOVO: Registro de Empresa e Dono (Transacional)
 // =======================
-app.post("/usuarios", async (req, res) => {
-  const { nome, email, senha } = req.body;
+app.post("/empresas", async (req, res) => {
+    const { nome_empresa, email, senha } = req.body;
 
-  if (!email || !senha) {
-    return res.status(400).json({ error: "Email e senha são obrigatórios." });
-  }
+    if (!nome_empresa || !email || !senha) {
+        return res.status(400).json({ error: "Nome da empresa, email e senha são obrigatórios." });
+    }
 
-  try {
-    const hashedPassword = await bcrypt.hash(senha, saltRounds);
+    let client;
+    try {
+        client = await pool.connect();
+        await client.query('BEGIN'); // Inicia transação
 
-    const result = await pool.query(
-      "INSERT INTO usuarios (username, password_hash) VALUES ($1, $2) RETURNING id, username",
-      [email, hashedPassword]
-    );
+        // 1. Cria a Empresa
+        const empresaResult = await client.query(
+            "INSERT INTO empresas (nome_empresa) VALUES ($1) RETURNING id",
+            [nome_empresa]
+        );
+        const empresaId = empresaResult.rows[0].id;
 
-    const user = result.rows[0];
-    res.status(201).json({
-      id: user.id,
-      email: user.username,
-      nome: nome || "Usuário",
-    });
-  } catch (err) {
-    console.error("Erro ao registrar usuário:", err);
-    if (err.code === "23505") {
-      return res.status(409).json({ error: "Este email já está cadastrado." });
-    }
-    res.status(500).json({ error: "Erro interno no servidor." });
-  }
+        // 2. Cria o Dono (is_owner = TRUE)
+        const hashedPassword = await bcrypt.hash(senha, saltRounds);
+        const userResult = await client.query(
+            "INSERT INTO usuarios (username, password_hash, empresa_id, is_owner) VALUES ($1, $2, $3, TRUE) RETURNING id, username",
+            [email, hashedPassword, empresaId]
+        );
+
+        await client.query('COMMIT'); // Confirma transação
+
+        const user = userResult.rows[0];
+        const token = jwt.sign(
+            { userId: user.id, email: user.username, empresaId: empresaId, isOwner: true },
+            JWT_SECRET,
+            { expiresIn: '1h' }
+        );
+
+        res.status(201).json({
+            message: "Empresa e Dono registrados com sucesso!",
+            empresa: { id: empresaId, nome: nome_empresa },
+            user: { id: user.id, email: user.username, isOwner: true },
+            token
+        });
+
+    } catch (err) {
+        if (client) await client.query('ROLLBACK'); // Desfaz em caso de erro
+        console.error("Erro ao registrar empresa/dono:", err);
+        if (err.code === "23505") {
+            return res.status(409).json({ error: "Este email ou nome de empresa já está cadastrado." });
+        }
+        res.status(500).json({ error: "Erro interno no servidor." });
+    } finally {
+        if (client) client.release();
+    }
 });
 
 // =======================
-// Login de usuário (Geração de JWT)
+// Registro de Funcionário (APENAS Dono pode criar)
+// =======================
+app.post("/usuarios", verifyToken, async (req, res) => {
+    const { email, senha, nome } = req.body;
+
+    // 🛑 Autorização: Apenas o Dono pode criar funcionários
+    if (!req.isOwner) {
+        return res.status(403).json({ error: "Apenas o dono da empresa pode criar contas de funcionário." });
+    }
+
+    if (!email || !senha) {
+        return res.status(400).json({ error: "Email e senha são obrigatórios." });
+    }
+
+    try {
+        const hashedPassword = await bcrypt.hash(senha, saltRounds);
+
+        // Novo usuário pertence à mesma empresa do Dono logado (req.empresaId)
+        const result = await pool.query(
+            "INSERT INTO usuarios (username, password_hash, empresa_id, is_owner) VALUES ($1, $2, $3, FALSE) RETURNING id, username",
+            [email, hashedPassword, req.empresaId]
+        );
+
+        const user = result.rows[0];
+        res.status(201).json({
+            id: user.id,
+            email: user.username,
+            nome: nome || "Funcionário",
+            empresa_id: req.empresaId
+        });
+    } catch (err) {
+        console.error("Erro ao registrar funcionário:", err);
+        if (err.code === "23505") {
+            return res.status(409).json({ error: "Este email já está cadastrado." });
+        }
+        res.status(500).json({ error: "Erro interno no servidor." });
+    }
+});
+
+// =======================
+// Login de usuário (Geração de JWT com Empresa ID)
 // =======================
 app.post("/login", async (req, res) => {
-  const { email, senha } = req.body;
+    const { email, senha } = req.body;
 
-  try {
-    const userResult = await pool.query("SELECT id, username, password_hash FROM usuarios WHERE username = $1", [email]);
+    try {
+        const userResult = await pool.query("SELECT id, username, password_hash, empresa_id, is_owner FROM usuarios WHERE username = $1", [email]);
 
-    if (userResult.rows.length === 0) {
-      return res.status(400).json({ error: "Email ou senha inválidos." });
-    }
+        if (userResult.rows.length === 0) {
+            return res.status(400).json({ error: "Email ou senha inválidos." });
+        }
 
-    const user = userResult.rows[0];
-    const match = await bcrypt.compare(senha, user.password_hash);
+        const user = userResult.rows[0];
+        const match = await bcrypt.compare(senha, user.password_hash);
 
-    if (match) {
-      // Criação do Token JWT
-      const token = jwt.sign({ userId: user.id, email: user.username }, JWT_SECRET, { expiresIn: '1h' });
+        if (match) {
+            // ✅ Criação do Token JWT completo
+            const token = jwt.sign(
+                {
+                    userId: user.id,
+                    email: user.username,
+                    empresaId: user.empresa_id,
+                    isOwner: user.is_owner
+                },
+                JWT_SECRET,
+                { expiresIn: '1h' }
+            );
 
-      res.status(200).json({
-        message: "Login bem-sucedido!",
-        user: { id: user.id, email: user.username },
-        token: token, // Retorna o token
-      });
-    } else {
-      res.status(400).json({ error: "Email ou senha inválidos." });
-    }
-  } catch (err) {
-    console.error("Erro no processo de login:", err);
-    res.status(500).json({ error: "Erro no servidor. Tente novamente." });
-  }
+            res.status(200).json({
+                message: "Login bem-sucedido!",
+                user: { 
+                    id: user.id, 
+                    email: user.username, 
+                    empresa_id: user.empresa_id,
+                    isOwner: user.is_owner
+                },
+                token: token,
+            });
+        } else {
+            res.status(400).json({ error: "Email ou senha inválidos." });
+        }
+    } catch (err) {
+        console.error("Erro no processo de login:", err);
+        res.status(500).json({ error: "Erro no servidor. Tente novamente." });
+    }
 });
 
 // =======================
-// Listar todos os usuários (PROTEGIDA)
-// =======================
-app.get("/usuarios", verifyToken, async (req, res) => {
-  try {
-    const result = await pool.query("SELECT id, username FROM usuarios");
-    const formattedUsers = result.rows.map((user) => ({
-      id: user.id,
-      email: user.username,
-    }));
-    res.json(formattedUsers);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Erro ao listar usuários." });
-  }
-});
-
-// =======================
-// Buscar usuário por ID (PROTEGIDA)
+// Buscar usuário por ID (Restrito à própria empresa)
 // =======================
 app.get("/usuarios/:id", verifyToken, async (req, res) => {
-  const { id } = req.params;
-  try {
-    const result = await pool.query("SELECT id, username FROM usuarios WHERE id = $1", [id]);
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: "Usuário não encontrado" });
-    }
-    const user = result.rows[0];
-    res.json({ id: user.id, email: user.username });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Erro ao buscar usuário." });
-  }
+    const { id } = req.params;
+    try {
+        // 🛑 Filtra pelo ID do usuário e pelo ID da empresa logada
+        const result = await pool.query("SELECT id, username, empresa_id, is_owner FROM usuarios WHERE id = $1 AND empresa_id = $2", [id, req.empresaId]);
+        if (result.rows.length === 0) {
+            // Se o usuário não existe ou pertence a outra empresa
+            return res.status(404).json({ error: "Usuário não encontrado nesta empresa." });
+        }
+        const user = result.rows[0];
+        res.json({ id: user.id, email: user.username, empresa_id: user.empresa_id });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Erro ao buscar usuário." });
+    }
 });
 
 // =======================
