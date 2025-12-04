@@ -173,62 +173,52 @@ app.post("/eventos/:evento_id/convidar", authorize, async (req, res) => {
 // ====================================================================
 app.put("/participations/:id", authorize, async (req, res) => {
     const { id } = req.params;
-    const { title, description, start_time, end_time, is_public } = req.body;
+    const { status } = req.body;
+
+    if (!status || !['accepted', 'declined'].includes(status)) {
+        return res.status(400).json({ error: "Status deve ser 'accepted' ou 'declined'." });
+    }
 
     try {
-        // Autorização: Verifica se o evento existe, pertence à empresa e se o usuário é o organizador
-        const eventCheck = await pool.query(
-            "SELECT organizer_id, empresa_id FROM eventos WHERE id = $1",
+        // Verifica se a participação existe e pertence ao usuário logado
+        const participationCheck = await pool.query(
+            `SELECT p.*, e.empresa_id 
+             FROM participacoes p 
+             JOIN eventos e ON p.event_id = e.id 
+             WHERE p.id = $1`,
             [id]
         );
 
-        if (eventCheck.rows.length === 0 || eventCheck.rows[0].empresa_id !== req.empresaId) {
-            return res.status(404).json({ error: "Evento não encontrado nesta empresa." });
+        if (participationCheck.rows.length === 0) {
+            return res.status(404).json({ error: "Participação não encontrada." });
         }
 
-        if (eventCheck.rows[0].organizer_id !== req.userId) {
-            return res.status(403).json({ error: "Apenas o organizador pode atualizar este evento." });
+        const participation = participationCheck.rows[0];
+
+        // Verifica se pertence à mesma empresa
+        if (participation.empresa_id !== req.empresaId) {
+            return res.status(403).json({ error: "Acesso negado." });
         }
 
-        // Atualiza apenas os campos fornecidos
-        const updates = [];
-        const values = [];
-        let paramCount = 1;
-
-        if (title !== undefined) {
-            updates.push(`title = $${paramCount++}`);
-            values.push(title);
-        }
-        if (description !== undefined) {
-            updates.push(`description = $${paramCount++}`);
-            values.push(description);
-        }
-        if (start_time !== undefined) {
-            updates.push(`start_time = $${paramCount++}`);
-            values.push(start_time);
-        }
-        if (end_time !== undefined) {
-            updates.push(`end_time = $${paramCount++}`);
-            values.push(end_time);
-        }
-        if (is_public !== undefined) {
-            updates.push(`is_public = $${paramCount++}`);
-            values.push(is_public);
+        // Verifica se é o próprio usuário
+        if (participation.user_id !== req.userId) {
+            return res.status(403).json({ error: "Você só pode atualizar suas próprias participações." });
         }
 
-        if (updates.length === 0) {
-            return res.status(400).json({ error: "Nenhum campo para atualizar foi fornecido." });
-        }
+        // Atualiza o status
+        const result = await pool.query(
+            "UPDATE participacoes SET status = $1 WHERE id = $2 RETURNING *",
+            [status, id]
+        );
 
-        values.push(id);
-        const query = `UPDATE eventos SET ${updates.join(', ')} WHERE id = $${paramCount} RETURNING *`;
-
-        const result = await pool.query(query, values);
-        res.json({ message: "Evento atualizado com sucesso.", evento: result.rows[0] });
+        res.json({
+            message: `Convite ${status === 'accepted' ? 'aceito' : 'recusado'} com sucesso.`,
+            participation: result.rows[0]
+        });
 
     } catch (err) {
-        console.error("Erro ao atualizar evento:", err);
-        res.status(500).json({ error: "Erro interno ao atualizar evento." });
+        console.error("Erro ao atualizar participação:", err);
+        res.status(500).json({ error: "Erro interno ao atualizar participação." });
     }
 });
 
@@ -269,6 +259,18 @@ app.get("/eventos/:id", authorize, async (req, res) => {
         res.status(500).json({ error: "Erro interno ao buscar evento." });
     }
 });
+
+// Helper para criar notificação
+async function createNotification(userId, message, type, eventId) {
+    try {
+        await pool.query(
+            "INSERT INTO notificacoes (user_id, message, type, event_id) VALUES ($1, $2, $3, $4)",
+            [userId, message, type, eventId]
+        );
+    } catch (err) {
+        console.error("Erro ao criar notificação:", err);
+    }
+}
 
 // ====================================================================
 // 8. Rota PUT /eventos/:id (Atualizar Evento) - ISOLADA
@@ -326,6 +328,19 @@ app.put("/eventos/:id", authorize, async (req, res) => {
         const query = `UPDATE eventos SET ${updates.join(', ')} WHERE id = $${paramCount} RETURNING *`;
 
         const result = await pool.query(query, values);
+
+        // Notificar participantes sobre a atualização
+        try {
+            const participants = await pool.query("SELECT user_id FROM participacoes WHERE event_id = $1", [id]);
+            for (const p of participants.rows) {
+                if (p.user_id !== req.userId) {
+                    await createNotification(p.user_id, `O evento "${result.rows[0].title}" foi atualizado.`, 'update', id);
+                }
+            }
+        } catch (notifErr) {
+            console.error("Erro ao criar notificações:", notifErr);
+        }
+
         res.json({ message: "Evento atualizado com sucesso.", evento: result.rows[0] });
 
     } catch (err) {
@@ -343,7 +358,7 @@ app.delete("/eventos/:id", authorize, async (req, res) => {
     try {
         // Autorização: Verifica se o evento existe, pertence à empresa e se o usuário é o organizador
         const eventCheck = await pool.query(
-            "SELECT organizer_id, empresa_id FROM eventos WHERE id = $1",
+            "SELECT organizer_id, empresa_id, title FROM eventos WHERE id = $1",
             [id]
         );
 
@@ -355,8 +370,23 @@ app.delete("/eventos/:id", authorize, async (req, res) => {
             return res.status(403).json({ error: "Apenas o organizador pode deletar este evento." });
         }
 
+        // Buscar participantes antes de deletar
+        const participants = await pool.query("SELECT user_id FROM participacoes WHERE event_id = $1", [id]);
+        const eventTitle = eventCheck.rows[0].title;
+
         // Deleta o evento (CASCADE vai deletar as participações automaticamente)
         await pool.query("DELETE FROM eventos WHERE id = $1", [id]);
+
+        // Notificar participantes sobre cancelamento
+        try {
+            for (const p of participants.rows) {
+                if (p.user_id !== req.userId) {
+                    await createNotification(p.user_id, `O evento "${eventTitle}" foi cancelado.`, 'cancel', null);
+                }
+            }
+        } catch (notifErr) {
+            console.error("Erro ao criar notificações:", notifErr);
+        }
 
         res.json({ message: "Evento deletado com sucesso." });
 
@@ -572,6 +602,43 @@ app.delete("/eventos/:id/sair", authorize, async (req, res) => {
     } catch (err) {
         console.error("Erro ao sair do evento:", err);
         res.status(500).json({ error: "Erro interno ao sair do evento." });
+    }
+});
+
+// ====================================================================
+// 14. Rota GET /notificacoes (Listar Notificações)
+// ====================================================================
+app.get("/notificacoes", authorize, async (req, res) => {
+    try {
+        const result = await pool.query(
+            "SELECT * FROM notificacoes WHERE user_id = $1 ORDER BY created_at DESC",
+            [req.userId]
+        );
+        res.json(result.rows);
+    } catch (err) {
+        console.error("Erro ao listar notificações:", err);
+        // Se a tabela não existir, retorna array vazio para não quebrar o front
+        if (err.code === '42P01') {
+            return res.json([]);
+        }
+        res.status(500).json({ error: "Erro interno ao listar notificações." });
+    }
+});
+
+// ====================================================================
+// 15. Rota PUT /notificacoes/:id/read (Marcar como lida)
+// ====================================================================
+app.put("/notificacoes/:id/read", authorize, async (req, res) => {
+    const { id } = req.params;
+    try {
+        await pool.query(
+            "UPDATE notificacoes SET read = TRUE WHERE id = $1 AND user_id = $2",
+            [id, req.userId]
+        );
+        res.json({ message: "Notificação marcada como lida." });
+    } catch (err) {
+        console.error("Erro ao atualizar notificação:", err);
+        res.status(500).json({ error: "Erro interno ao atualizar notificação." });
     }
 });
 
