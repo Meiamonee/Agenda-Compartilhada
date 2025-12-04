@@ -3,13 +3,15 @@ import { useNavigate } from "react-router-dom";
 import {
   authService,
   eventService,
-  participationService
+  participationService,
+  notificationService
 } from "../api/apiService";
 import Layout from "../components/Layout";
 import Button from "../components/Button";
 import Input from "../components/Input";
 import EventCard from "../components/EventCard";
 import InviteCard from "../components/InviteCard";
+import NotificationCard from "../components/NotificationCard";
 import Modal from "../components/Modal";
 import Calendar from "../components/Calendar";
 import CalendarView from "../components/CalendarView";
@@ -26,6 +28,7 @@ export default function Dashboard({ initialView = "list" }) {
   const [myEvents, setMyEvents] = useState([]);
   const [acceptedEvents, setAcceptedEvents] = useState([]);
   const [invites, setInvites] = useState([]);
+  const [notifications, setNotifications] = useState([]);
   const [users, setUsers] = useState([]);
   const [companyUsers, setCompanyUsers] = useState([]); // Novos usuários da empresa
   const [participants, setParticipants] = useState([]);
@@ -100,6 +103,7 @@ export default function Dashboard({ initialView = "list" }) {
       const promises = [
         loadEvents(),
         loadInvites(),
+        loadNotifications(),
         loadAcceptedEvents(),
         loadUsers()
       ];
@@ -138,6 +142,16 @@ export default function Dashboard({ initialView = "list" }) {
       setInvites(data);
     } catch (err) {
       console.error("Erro ao carregar convites:", err);
+    }
+  };
+
+  // Carregar notificações
+  const loadNotifications = async () => {
+    try {
+      const data = await notificationService.getNotifications();
+      setNotifications(data);
+    } catch (err) {
+      console.error("Erro ao carregar notificações:", err);
     }
   };
 
@@ -519,11 +533,22 @@ export default function Dashboard({ initialView = "list" }) {
     }
   };
 
+  // Marcar notificação como lida
+  const handleDismissNotification = async (notification) => {
+    try {
+      await notificationService.markAsRead(notification.id);
+      // Remove da lista localmente
+      setNotifications(prev => prev.filter(n => n.id !== notification.id));
+    } catch (err) {
+      console.error("Erro ao marcar notificação como lida:", err);
+    }
+  };
+
   const tabs = [
     { id: "all", label: "Todos os Eventos", count: events.length },
     { id: "my", label: "Meus Eventos", count: myEvents.length },
     { id: "accepted", label: "Confirmados", count: acceptedEvents.length },
-    { id: "invites", label: "Convites", count: invites.length, badge: invites.length > 0 },
+    { id: "invites", label: "Notificações", count: invites.length + notifications.length, badge: (invites.length + notifications.length) > 0 },
   ];
 
   return (
@@ -699,19 +724,28 @@ export default function Dashboard({ initialView = "list" }) {
             )}
 
             {activeTab === "invites" && (
-              invites.length === 0 ? (
+              (invites.length === 0 && notifications.length === 0) ? (
                 <div className="col-span-full text-center py-20 bg-white rounded-2xl border border-dashed border-gray-300">
-                  <p className="text-gray-500 text-lg">Nenhum convite pendente.</p>
+                  <p className="text-gray-500 text-lg">Nenhuma notificação.</p>
                 </div>
               ) : (
-                invites.map(invite => (
-                  <InviteCard
-                    key={invite.participation_id}
-                    invite={invite}
-                    onAccept={handleAcceptInvite}
-                    onDecline={handleDeclineInvite}
-                  />
-                ))
+                <>
+                  {notifications.map(notification => (
+                    <NotificationCard
+                      key={`notif-${notification.id}`}
+                      notification={notification}
+                      onDismiss={handleDismissNotification}
+                    />
+                  ))}
+                  {invites.map(invite => (
+                    <InviteCard
+                      key={`invite-${invite.participation_id}`}
+                      invite={invite}
+                      onAccept={handleAcceptInvite}
+                      onDecline={handleDeclineInvite}
+                    />
+                  ))}
+                </>
               )
             )}
           </div>

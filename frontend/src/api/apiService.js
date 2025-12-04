@@ -254,6 +254,22 @@ export const participationService = {
   }
 };
 
+// ==================== SERVIÇOS DE NOTIFICAÇÃO ====================
+
+export const notificationService = {
+  // Listar notificações
+  async getNotifications() {
+    const response = await eventsApi.get("/notificacoes");
+    return response.data;
+  },
+
+  // Marcar como lida
+  async markAsRead(id) {
+    const response = await eventsApi.put(`/notificacoes/${id}/read`);
+    return response.data;
+  }
+};
+
 // Exporta as instâncias também para uso direto
 export { authApi, eventsApi };
 
