@@ -229,7 +229,27 @@ app.get("/eventos", authorize, async (req, res) => {
     try {
         // 🛑 Filtra todos os eventos APENAS pela empresa do usuário logado
         const result = await pool.query("SELECT * FROM eventos WHERE empresa_id = $1 ORDER BY start_time ASC", [req.empresaId]);
-        res.json(result.rows);
+
+        // Buscar email do organizador para cada evento
+        const eventsWithOrganizerEmail = await Promise.all(
+            result.rows.map(async (event) => {
+                try {
+                    const userDetails = await getUserDetails(event.organizer_id, req.token);
+                    return {
+                        ...event,
+                        organizer_email: userDetails.email
+                    };
+                } catch (err) {
+                    // Se não conseguir buscar o email, retorna sem ele
+                    return {
+                        ...event,
+                        organizer_email: "Email não disponível"
+                    };
+                }
+            })
+        );
+
+        res.json(eventsWithOrganizerEmail);
     } catch (err) {
         console.error("Erro ao listar eventos:", err);
         res.status(500).json({ error: "Erro interno no servidor ao listar eventos." });
