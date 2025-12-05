@@ -260,28 +260,13 @@ app.get("/eventos/:id", authorize, async (req, res) => {
     }
 });
 
-// Helper para criar notificação (com deduplicação)
+// Helper para criar notificação
 async function createNotification(userId, message, type, eventId) {
     try {
-        // Verifica se já existe uma notificação não lida do mesmo tipo para o mesmo evento
-        const existingNotif = await pool.query(
-            "SELECT id FROM notificacoes WHERE user_id = $1 AND event_id = $2 AND type = $3 AND read = FALSE",
-            [userId, eventId, type]
+        await pool.query(
+            "INSERT INTO notificacoes (user_id, message, type, event_id) VALUES ($1, $2, $3, $4)",
+            [userId, message, type, eventId]
         );
-
-        if (existingNotif.rows.length > 0) {
-            // Atualiza a notificação existente com a nova mensagem e timestamp
-            await pool.query(
-                "UPDATE notificacoes SET message = $1, created_at = NOW() WHERE id = $2",
-                [message, existingNotif.rows[0].id]
-            );
-        } else {
-            // Cria uma nova notificação
-            await pool.query(
-                "INSERT INTO notificacoes (user_id, message, type, event_id) VALUES ($1, $2, $3, $4)",
-                [userId, message, type, eventId]
-            );
-        }
     } catch (err) {
         console.error("Erro ao criar notificação:", err);
     }
