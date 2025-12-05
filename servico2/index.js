@@ -263,9 +263,9 @@ app.get("/eventos/:id", authorize, async (req, res) => {
 // Helper para criar notificação (com deduplicação)
 async function createNotification(userId, message, type, eventId) {
     try {
-        // Verifica se já existe uma notificação não lida do mesmo tipo para o mesmo evento
+        // Verifica se já existe uma notificação do mesmo tipo para o mesmo evento
         const existingNotif = await pool.query(
-            "SELECT id FROM notificacoes WHERE user_id = $1 AND event_id = $2 AND type = $3 AND read = FALSE",
+            "SELECT id FROM notificacoes WHERE user_id = $1 AND event_id = $2 AND type = $3",
             [userId, eventId, type]
         );
 
@@ -641,19 +641,55 @@ app.get("/notificacoes", authorize, async (req, res) => {
 });
 
 // ====================================================================
-// 15. Rota PUT /notificacoes/:id/read (Marcar como lida)
+// 15. Rota PUT /notificacoes/:id/read (Deletar após visualizar)
 // ====================================================================
 app.put("/notificacoes/:id/read", authorize, async (req, res) => {
     const { id } = req.params;
     try {
+        // Deleta a notificação após ser visualizada
         await pool.query(
-            "UPDATE notificacoes SET read = TRUE WHERE id = $1 AND user_id = $2",
+            "DELETE FROM notificacoes WHERE id = $1 AND user_id = $2",
             [id, req.userId]
         );
-        res.json({ message: "Notificação marcada como lida." });
+        res.json({ message: "Notificação removida." });
     } catch (err) {
-        console.error("Erro ao atualizar notificação:", err);
-        res.status(500).json({ error: "Erro interno ao atualizar notificação." });
+        console.error("Erro ao remover notificação:", err);
+        res.status(500).json({ error: "Erro interno ao remover notificação." });
+    }
+});
+
+// ====================================================================
+// 16. Rota POST /notificacoes/cleanup (Limpar Notificações Duplicadas) - TEMPORÁRIO
+// ====================================================================
+app.post("/notificacoes/cleanup", authorize, async (req, res) => {
+    try {
+        // Deletar notificações duplicadas, mantendo apenas a mais recente de cada tipo/evento/usuário
+        const result = await pool.query(`
+            DELETE FROM notificacoes
+            WHERE id IN (
+                SELECT id
+                FROM (
+                    SELECT 
+                        id,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY user_id, event_id, type 
+                            ORDER BY created_at DESC
+                        ) as rn
+                    FROM notificacoes
+                    WHERE user_id = $1
+                ) t
+                WHERE rn > 1
+            )
+            RETURNING *
+        `, [req.userId]);
+
+        res.json({
+            message: "Notificações duplicadas removidas com sucesso.",
+            deleted_count: result.rows.length
+        });
+    } catch (err) {
+        console.error("Erro ao limpar notificações:", err);
+        res.status(500).json({ error: "Erro interno ao limpar notificações." });
     }
 });
 

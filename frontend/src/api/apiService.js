@@ -267,6 +267,12 @@ export const notificationService = {
   async markAsRead(id) {
     const response = await eventsApi.put(`/notificacoes/${id}/read`);
     return response.data;
+  },
+
+  // Limpar notificações duplicadas
+  async cleanupDuplicates() {
+    const response = await eventsApi.post("/notificacoes/cleanup");
+    return response.data;
   }
 };
 
