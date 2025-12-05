@@ -140,27 +140,16 @@ export default function EventCard({
       </div>
 
       {!isOrganizer && (
-        <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-between items-center">
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={() => onViewParticipants(event)}
-            className="text-gray-600 hover:text-gray-900"
-          >
-            <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
-            Participantes
-          </Button>
-          <div className="flex gap-2">
-            {isParticipating ? (
-              <Button variant="danger" size="sm" onClick={() => onLeave(event)}>
-                Sair do Evento
-              </Button>
-            ) : (
-              <Button variant="primary" size="sm" onClick={() => onJoin(event)}>
-                Participar
-              </Button>
-            )}
-          </div>
+        <div className="p-4 border-t border-gray-100 flex justify-end">
+          {isParticipating ? (
+            <Button variant="danger" size="sm" onClick={() => onLeave(event)}>
+              Sair do Evento
+            </Button>
+          ) : (
+            <Button variant="primary" size="sm" onClick={() => onJoin(event)}>
+              Participar
+            </Button>
+          )}
         </div>
       )}
     </div>
