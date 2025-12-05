@@ -520,7 +520,8 @@ app.get("/usuarios/:user_id/convites", authorize, async (req, res) => {
 
     try {
         const result = await pool.query(
-            `SELECT p.*, e.title, e.description, e.start_time, e.end_time, e.organizer_id 
+            `SELECT p.id AS participation_id, p.event_id, p.user_id, p.status, 
+                    e.title, e.description, e.start_time, e.end_time, e.organizer_id 
              FROM participacoes p
              JOIN eventos e ON p.event_id = e.id
              WHERE p.user_id = $1 AND p.status = 'invited' AND e.empresa_id = $2`,

@@ -330,7 +330,12 @@ export default function Dashboard({ initialView = "list" }) {
     // Carregar participantes atuais
     try {
       const data = await eventService.getEventParticipants(event.id);
-      setParticipants(data);
+      // Map user_email to email for consistency
+      const mappedData = data.map(p => ({
+        ...p,
+        email: p.user_email || p.email
+      }));
+      setParticipants(mappedData);
     } catch (err) {
       console.error("Erro ao carregar participantes:", err);
     }
@@ -380,7 +385,12 @@ export default function Dashboard({ initialView = "list" }) {
 
     try {
       const data = await eventService.getEventParticipants(event.id);
-      setParticipants(data);
+      // Map user_email to email for consistency
+      const mappedData = data.map(p => ({
+        ...p,
+        email: p.user_email || p.email
+      }));
+      setParticipants(mappedData);
       setShowParticipantsModal(true);
     } catch (err) {
       const msg = err.response?.data?.error || "Erro ao carregar participantes";
