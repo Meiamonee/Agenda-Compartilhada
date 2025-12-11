@@ -1,7 +1,7 @@
 // Arquivo: servico-eventos.js (Porta 3002)
 
 const express = require("express");
-const { Pool } = require("pg"); // Importa Pool diretamente se não tiver db.js
+const { Pool } = require("pg"); 
 const cors = require('cors');
 const axios = require("axios");
 const Opossum = require("opossum");
