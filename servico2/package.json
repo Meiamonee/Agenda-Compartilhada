@@ -11,11 +11,14 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "axios": "^1.12.2",
+    "axios": "^1.13.2",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
+    "http": "^0.0.1-security",
     "jsonwebtoken": "^9.0.2",
-    "opossum": "^9.0.0"
+    "node-cron": "^4.2.1",
+    "opossum": "^9.0.0",
+    "socket.io": "^4.8.1"
   }
 }
