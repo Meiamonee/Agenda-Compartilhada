@@ -32,7 +32,7 @@ const io = new Server(server, {
 
 const servico1Url = process.env.SERVICO1_URL || "http://localhost:3001"; // URL do Serviço 1
 const PORT = process.env.PORT || 3002;
-const JWT_SECRET = process.env.JWT_SECRET || "sua_chave_secreta_aqui";
+const JWT_SECRET = process.env.JWT_SECRET || "dois_poneis_saltitam_pelo_campo";
 
 // =================================
 // Middleware de Autorização
