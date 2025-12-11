@@ -1,7 +1,7 @@
 // Arquivo: servico-usuarios.js (Porta 3001)
 
 const express = require("express");
-const { Pool } = require("pg"); // Importa Pool diretamente se não tiver db.js
+const { Pool } = require("pg");
 const cors = require("cors");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
