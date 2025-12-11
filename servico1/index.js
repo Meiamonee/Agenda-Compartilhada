@@ -19,7 +19,7 @@ app.use(express.json());
 
 const saltRounds = 10;
 const PORT = process.env.PORT || 3001;
-const JWT_SECRET = process.env.JWT_SECRET || "sua_chave_secreta_aqui";
+const JWT_SECRET = process.env.JWT_SECRET || "dois_poneis_saltitam_pelo_campo";
 
 // =======================
 // Testar conexão com o banco...
