@@ -339,10 +339,6 @@ Configure as mesmas variáveis dos arquivos `.env`, ajustando:
 
 Este projeto foi desenvolvido para fins educacionais e demonstração de sistema completo de microserviços com React.
 
-## 🎉 Começar Agora!
-
-**Pronto para usar?** Siga o guia de início rápido acima ou consulte **[START.md](START.md)** para comandos detalhados!
-
 ---
 
 **Desenvolvido com ❤️ - Sistema Profissional de Agenda Compartilhada Multi-Tenant**
