@@ -156,6 +156,17 @@ export const authService = {
   async deleteEmployee(userId) {
     const response = await authApi.delete(`/usuarios/${userId}`);
     return response.data;
+  },
+
+  // Atualizar funcionário (apenas dono)
+  async updateEmployee(userId, nome, email, senha) {
+    const data = {};
+    if (nome) data.nome = nome;
+    if (email) data.email = email;
+    if (senha) data.senha = senha;
+
+    const response = await authApi.put(`/usuarios/${userId}`, data);
+    return response.data;
   }
 };
 

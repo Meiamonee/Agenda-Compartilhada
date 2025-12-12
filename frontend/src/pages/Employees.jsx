@@ -22,6 +22,15 @@ export default function Employees() {
         senha: ""
     });
 
+    // Modal de edição
+    const [showEditModal, setShowEditModal] = useState(false);
+    const [editingEmployee, setEditingEmployee] = useState(null);
+    const [editForm, setEditForm] = useState({
+        nome: "",
+        email: "",
+        senha: ""
+    });
+
     // Modal de visualização de eventos
     const [showEventsModal, setShowEventsModal] = useState(false);
     const [selectedEmployee, setSelectedEmployee] = useState(null);
@@ -127,6 +136,44 @@ export default function Employees() {
         }
     };
 
+    const handleOpenEditModal = (employee) => {
+        setEditingEmployee(employee);
+        setEditForm({
+            nome: employee.nome || "",
+            email: employee.email,
+            senha: ""  // Senha vazia por padrão
+        });
+        setShowEditModal(true);
+    };
+
+    const handleUpdateEmployee = async (e) => {
+        e.preventDefault();
+        setError("");
+        setSuccess("");
+        setLoading(true);
+
+        try {
+            await authService.updateEmployee(
+                editingEmployee.id,
+                editForm.nome,
+                editForm.email,
+                editForm.senha || undefined  // Só envia senha se foi preenchida
+            );
+            setSuccess("Funcionário atualizado com sucesso!");
+            setShowEditModal(false);
+            setEditForm({ nome: "", email: "", senha: "" });
+            setEditingEmployee(null);
+            if (user?.empresa_id) {
+                await loadEmployees(user.empresa_id);
+            }
+        } catch (err) {
+            const msg = err.response?.data?.error || "Erro ao atualizar funcionário";
+            setError(msg);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <Layout
             user={user}
@@ -190,6 +237,15 @@ export default function Employees() {
                                             Ver Agenda
                                         </Button>
                                         <button
+                                            onClick={() => handleOpenEditModal(emp)}
+                                            className="text-blue-500 hover:text-blue-700 p-2 hover:bg-blue-50 rounded-lg transition-colors"
+                                            title="Editar funcionário"
+                                        >
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                            </svg>
+                                        </button>
+                                        <button
                                             onClick={() => handleDeleteEmployee(emp.id)}
                                             className="text-red-500 hover:text-red-700 p-2 hover:bg-red-50 rounded-lg transition-colors"
                                             title="Remover funcionário"
@@ -245,6 +301,58 @@ export default function Employees() {
                         </Button>
                         <Button type="submit" isLoading={loading} className="flex-1">
                             Criar Credencial
+                        </Button>
+                    </div>
+                </form>
+            </Modal>
+
+            {/* Modal Editar Funcionário */}
+            <Modal
+                isOpen={showEditModal}
+                onClose={() => {
+                    setShowEditModal(false);
+                    setEditingEmployee(null);
+                    setEditForm({ nome: "", email: "", senha: "" });
+                }}
+                title={`Editar ${editingEmployee?.email || 'Funcionário'}`}
+            >
+                <form onSubmit={handleUpdateEmployee} className="space-y-6">
+                    <Input
+                        label="Nome Completo"
+                        value={editForm.nome}
+                        onChange={(e) => setEditForm({ ...editForm, nome: e.target.value })}
+                        placeholder="Nome do funcionário"
+                    />
+                    <Input
+                        label="Email Corporativo"
+                        type="email"
+                        value={editForm.email}
+                        onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                        required
+                        placeholder="funcionario@empresa.com"
+                    />
+                    <Input
+                        label="Nova Senha (deixe em branco para manter a atual)"
+                        type="password"
+                        value={editForm.senha}
+                        onChange={(e) => setEditForm({ ...editForm, senha: e.target.value })}
+                        placeholder="••••••••"
+                    />
+                    <div className="flex gap-3 pt-2">
+                        <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={() => {
+                                setShowEditModal(false);
+                                setEditingEmployee(null);
+                                setEditForm({ nome: "", email: "", senha: "" });
+                            }}
+                            className="flex-1"
+                        >
+                            Cancelar
+                        </Button>
+                        <Button type="submit" isLoading={loading} className="flex-1">
+                            Salvar Alterações
                         </Button>
                     </div>
                 </form>

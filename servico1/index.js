@@ -155,6 +155,128 @@ app.post("/usuarios", verifyToken, async (req, res) => {
 });
 
 // =======================
+// Atualizar funcionário (Apenas Dono)
+// =======================
+app.put("/usuarios/:id", verifyToken, async (req, res) => {
+    const { id } = req.params;
+    const { nome, email, senha } = req.body;
+
+    // Verificar se é o dono da empresa
+    if (!req.isOwner) {
+        return res.status(403).json({ error: "Apenas o dono pode editar funcionários." });
+    }
+
+    try {
+        // Verificar se o usuário pertence à mesma empresa
+        const userCheck = await pool.query(
+            "SELECT empresa_id, is_owner FROM usuarios WHERE id = $1",
+            [id]
+        );
+
+        if (userCheck.rows.length === 0) {
+            return res.status(404).json({ error: "Usuário não encontrado." });
+        }
+
+        if (userCheck.rows[0].empresa_id !== req.empresaId) {
+            return res.status(403).json({ error: "Você só pode editar funcionários da sua empresa." });
+        }
+
+        if (userCheck.rows[0].is_owner) {
+            return res.status(403).json({ error: "Não é possível editar o dono da empresa." });
+        }
+
+        // Verificar se o novo email já existe (se foi alterado)
+        if (email) {
+            const emailCheck = await pool.query(
+                "SELECT id FROM usuarios WHERE username = $1 AND id != $2",
+                [email, id]
+            );
+            if (emailCheck.rows.length > 0) {
+                return res.status(400).json({ error: "Este email já está em uso." });
+            }
+        }
+
+        // Construir query de atualização dinamicamente
+        const updates = [];
+        const values = [];
+        let paramCount = 1;
+
+        if (nome) {
+            updates.push(`nome = $${paramCount++}`);
+            values.push(nome);
+        }
+
+        if (email) {
+            updates.push(`username = $${paramCount++}`);
+            values.push(email);
+        }
+
+        if (senha) {
+            const hashedPassword = await bcrypt.hash(senha, saltRounds);
+            updates.push(`password_hash = $${paramCount++}`);
+            values.push(hashedPassword);
+        }
+
+        if (updates.length === 0) {
+            return res.status(400).json({ error: "Nenhum campo para atualizar." });
+        }
+
+        values.push(id);
+        const query = `UPDATE usuarios SET ${updates.join(", ")} WHERE id = $${paramCount}`;
+
+        await pool.query(query, values);
+
+        res.json({ message: "Funcionário atualizado com sucesso!" });
+    } catch (err) {
+        console.error("Erro ao atualizar funcionário:", err);
+        if (err.code === "23505") {
+            return res.status(409).json({ error: "Este email já está cadastrado." });
+        }
+        res.status(500).json({ error: "Erro ao atualizar funcionário." });
+    }
+});
+
+// =======================
+// Deletar funcionário (Apenas Dono)
+// =======================
+app.delete("/usuarios/:id", verifyToken, async (req, res) => {
+    const { id } = req.params;
+
+    // Verificar se é o dono da empresa
+    if (!req.isOwner) {
+        return res.status(403).json({ error: "Apenas o dono pode deletar funcionários." });
+    }
+
+    try {
+        // Verificar se o usuário pertence à mesma empresa
+        const userCheck = await pool.query(
+            "SELECT empresa_id, is_owner FROM usuarios WHERE id = $1",
+            [id]
+        );
+
+        if (userCheck.rows.length === 0) {
+            return res.status(404).json({ error: "Usuário não encontrado." });
+        }
+
+        if (userCheck.rows[0].empresa_id !== req.empresaId) {
+            return res.status(403).json({ error: "Você só pode deletar funcionários da sua empresa." });
+        }
+
+        if (userCheck.rows[0].is_owner) {
+            return res.status(403).json({ error: "Não é possível deletar o dono da empresa." });
+        }
+
+        // Deletar o usuário
+        await pool.query("DELETE FROM usuarios WHERE id = $1", [id]);
+
+        res.json({ message: "Funcionário removido com sucesso!" });
+    } catch (err) {
+        console.error("Erro ao deletar funcionário:", err);
+        res.status(500).json({ error: "Erro ao deletar funcionário." });
+    }
+});
+
+// =======================
 // Login de usuário (Geração de JWT com Empresa ID)
 // =======================
 app.post("/login", async (req, res) => {
