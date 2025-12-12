@@ -1,30 +1,67 @@
-# 🗓️ Agenda Compartilhada - Sistema Completo
+# 🗓️ Agenda Compartilhada - Sistema Multi-Tenant Completo
 
-Sistema completo de gerenciamento de agenda compartilhada com autenticação JWT, sistema de convites e interface moderna.
+Sistema profissional de gerenciamento de agenda compartilhada com arquitetura multi-tenant, chat em tempo real, visualização de calendário e sistema completo de notificações.
 
 ## ✨ Funcionalidades Principais
 
-- 🔐 **Autenticação segura** com JWT e bcrypt
-- 📅 **CRUD completo de eventos** (Criar, Listar, Editar, Deletar)
-- 👥 **Sistema de convites** (Enviar, Aceitar, Recusar)
-- 📊 **Dashboard intuitivo** com múltiplas visualizações
-- 🔔 **Notificações** de convites pendentes
-- 👤 **Gerenciamento de participantes** com status em tempo real
-- 🎨 **Interface moderna** com Tailwind CSS
-- 🛡️ **Segurança robusta** e validação de permissões
-- 🔄 **Tolerância a falhas** com Circuit Breaker
+### 🏢 Sistema Multi-Tenant
+- 🏭 **Gestão de Empresas** - Cada empresa tem seu próprio espaço isolado
+- � **Hierarquia de Usuários** - Donos e Funcionários com permissões diferenciadas
+- �🔐 **Autenticação segura** com JWT e bcrypt
+- � **Gerenciamento de Funcionários** - Donos podem criar, editar e remover funcionários
+
+### �📅 Gerenciamento de Eventos
+- ✅ **CRUD completo de eventos** (Criar, Listar, Editar, Deletar)
+- � **Dashboard intuitivo** com 4 visualizações diferentes
+- 📆 **Visualização em Calendário** - Grid mensal interativo com eventos
+- �👥 **Sistema de convites** (Enviar, Aceitar, Recusar)
+- � **Gerenciamento de participantes** com status em tempo real
+
+### 💬 Chat em Tempo Real
+- 🔴 **Socket.IO** para comunicação instantânea
+- 💭 **Chat por evento** - Cada evento tem seu próprio chat
+- 📝 **Histórico de mensagens** persistido no banco de dados
+- 🔔 **Notificações de mensagens não lidas**
+- 🟢 **Indicador de conexão** em tempo real
+
+### 🔔 Sistema de Notificações
+- � **Notificações de convites** para novos eventos
+- 🔄 **Notificações de atualização** quando eventos são modificados
+- ❌ **Notificações de cancelamento** quando eventos são deletados
+- 📊 **Central de notificações** no dashboard
+- ⚡ **Notificações em tempo real** via WebSocket
+
+### 🎨 Interface Moderna
+- 🎨 **Design responsivo** com Tailwind CSS
+- 🌙 **Interface limpa e profissional**
+- 📱 **Navegação mobile** com bottom navigation
+- 🔄 **Feedback visual** para todas as ações
+- ✨ **Animações suaves** e transições
+
+### 🛡️ Segurança e Resiliência
+- 🔐 **Senhas criptografadas** com bcrypt (10 rounds)
+- 🎫 **Autenticação JWT** com expiração de 1 hora
+- 🛡️ **Validação de permissões** em todos os endpoints
+- 🔄 **Circuit Breaker** para tolerância a falhas
+- 🏢 **Isolamento de dados** por empresa
+- 🚫 **Proteção contra SQL injection**
+
+### ⏰ Automação
+- 🧹 **Limpeza automática** de eventos antigos (>30 dias)
+- ⏰ **Cron jobs** para manutenção do sistema
 
 ## 🏗️ Arquitetura
 
 ### Microserviços
-- **Serviço 1 (Porta 3001)**: Gerenciamento de Usuários e Autenticação
-- **Serviço 2 (Porta 3002)**: Gerenciamento de Eventos e Participações
+- **Serviço 1 (Porta 3001)**: Gerenciamento de Usuários, Empresas e Autenticação
+- **Serviço 2 (Porta 3002)**: Gerenciamento de Eventos, Chat e Notificações
 
 ### Stack Tecnológica
-- **Frontend**: React, Vite, Tailwind CSS, React Router DOM, Axios
-- **Backend**: Node.js, Express, JWT, bcrypt
-- **Banco de Dados**: PostgreSQL
+- **Frontend**: React 19, Vite, Tailwind CSS, React Router DOM, Axios, Socket.IO Client, Lucide React
+- **Backend**: Node.js, Express, JWT, bcrypt, Socket.IO, node-cron
+- **Banco de Dados**: PostgreSQL com suporte SSL
 - **Resiliência**: Opossum (Circuit Breaker)
+- **Real-time**: Socket.IO para WebSockets
 
 ## 🚀 Início Rápido (5 minutos)
 
@@ -74,28 +111,53 @@ Abra seu navegador em: **http://localhost:5173**
 
 ## 🎯 Funcionalidades Detalhadas
 
-### Para Organizadores
+### 👔 Para Donos de Empresa
+- ✅ Criar e gerenciar a empresa
+- ✅ Adicionar, editar e remover funcionários
+- ✅ Visualizar todos os usuários da empresa
+- ✅ Todas as funcionalidades de organizador e participante
+
+### 📅 Para Organizadores de Eventos
 - ✅ Criar eventos com título, descrição, data/hora
 - ✅ Editar e deletar seus eventos
-- ✅ Convidar múltiplos usuários
+- ✅ Convidar múltiplos funcionários da empresa
 - ✅ Acompanhar confirmações de presença
 - ✅ Ver lista completa de participantes
+- ✅ Gerenciar chat do evento
+- ✅ Remover participantes
 
-### Para Participantes
+### 👥 Para Participantes
 - ✅ Receber convites para eventos
 - ✅ Aceitar ou recusar convites
 - ✅ Visualizar eventos confirmados
 - ✅ Ver outros participantes
-- ✅ Notificações de convites pendentes
+- ✅ Receber notificações de convites, atualizações e cancelamentos
+- ✅ Participar do chat do evento
+- ✅ Visualizar eventos no calendário
+- ✅ Sair de eventos
 
 ## 🎨 Interface
 
-O sistema possui um dashboard intuitivo com 4 abas principais:
+O sistema possui um dashboard intuitivo com **5 visualizações principais**:
 
-1. **Todos os Eventos**: Visualiza todos os eventos públicos
-2. **Meus Eventos**: Eventos que você criou (com controles completos)
-3. **Eventos Aceitos**: Eventos para os quais você confirmou presença
-4. **Convites Pendentes**: Convites aguardando resposta (com badge de notificação)
+1. **📋 Todos os Eventos**: Visualiza todos os eventos da empresa
+2. **📝 Meus Eventos**: Eventos que você criou (com controles completos de edição/exclusão)
+3. **✅ Eventos Aceitos**: Eventos para os quais você confirmou presença
+4. **📬 Notificações**: Central de notificações com convites, atualizações e cancelamentos (com badge de contador)
+5. **📆 Calendário**: Visualização mensal em grid com todos os eventos
+
+### 💬 Chat Widget
+- **Botão flutuante** no canto inferior direito
+- **Chat por evento** - Disponível quando você está visualizando um evento
+- **Contador de mensagens não lidas**
+- **Histórico completo** de conversas
+- **Indicador de status** de conexão
+
+### 👥 Gerenciamento de Funcionários (Apenas Donos)
+- **Página dedicada** para gerenciar funcionários
+- **Adicionar novos funcionários** com email e senha
+- **Editar informações** de funcionários existentes
+- **Remover funcionários** da empresa
 
 ## 🔐 Segurança
 
@@ -111,11 +173,29 @@ O sistema possui um dashboard intuitivo com 4 abas principais:
 ### Estrutura de Arquivos
 ```
 Agenda-Compartilhada/
-├── servico1/           # API de Usuários (3001)
-├── servico2/           # API de Eventos (3002)
-├── frontend/           # Interface React
-├── database_setup.sql  # Script SQL
-└── *.md               # Documentação
+├── servico1/              # API de Usuários e Empresas (3001)
+│   └── index.js          # Servidor principal
+├── servico2/              # API de Eventos, Chat e Notificações (3002)
+│   └── index.js          # Servidor principal com Socket.IO
+├── frontend/              # Interface React
+│   ├── src/
+│   │   ├── components/   # Componentes reutilizáveis
+│   │   │   ├── ChatWidget.jsx       # Widget de chat flutuante
+│   │   │   ├── CalendarView.jsx     # Visualização de calendário
+│   │   │   ├── EventCard.jsx        # Card de evento
+│   │   │   ├── NotificationCard.jsx # Card de notificação
+│   │   │   ├── Layout.jsx           # Layout principal
+│   │   │   └── ...
+│   │   ├── pages/        # Páginas da aplicação
+│   │   │   ├── Dashboard.jsx        # Dashboard principal
+│   │   │   ├── Employees.jsx        # Gerenciamento de funcionários
+│   │   │   ├── Login.jsx            # Página de login
+│   │   │   ├── RegisterCompany.jsx  # Registro de empresa
+│   │   │   └── RegisterEmployee.jsx # Registro de funcionário
+│   │   └── services/     # Serviços de API
+│   └── package.json
+├── package.json           # Scripts e dependências raiz
+└── *.md                  # Documentação
 ```
 
 ### Scripts Disponíveis
@@ -138,35 +218,73 @@ Para testar a API manualmente, consulte **[API_TESTS.md](API_TESTS.md)** com exe
 
 ### Teste Rápido
 ```bash
-# Criar usuário
-curl -X POST http://localhost:3001/usuarios \
+# 1. Registrar Empresa e Dono
+curl -X POST http://localhost:3001/empresas \
   -H "Content-Type: application/json" \
-  -d '{"nome": "Teste", "email": "teste@email.com", "senha": "123456"}'
+  -d '{"nome_empresa": "Minha Empresa", "email": "dono@empresa.com", "senha": "123456"}'
 
-# Login
+# 2. Login (retorna token JWT)
 curl -X POST http://localhost:3001/login \
   -H "Content-Type: application/json" \
-  -d '{"email": "teste@email.com", "senha": "123456"}'
+  -d '{"email": "dono@empresa.com", "senha": "123456"}'
+
+# 3. Criar Funcionário (use o token do login)
+curl -X POST http://localhost:3001/usuarios \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer SEU_TOKEN_AQUI" \
+  -d '{"email": "funcionario@empresa.com", "senha": "123456", "nome": "João Silva"}'
 ```
 
 ## 📊 Endpoints da API
 
-### Serviço 1 - Usuários (3001)
-- `POST /usuarios` - Registrar usuário
-- `POST /login` - Login e obter JWT
-- `GET /usuarios` - Listar usuários (protegida)
-- `GET /usuarios/:id` - Buscar usuário (protegida)
+### Serviço 1 - Usuários e Empresas (3001)
 
-### Serviço 2 - Eventos (3002)
+#### Empresas
+- `POST /empresas` - Registrar empresa e dono (público)
+- `GET /empresas/:id` - Buscar detalhes da empresa (protegida)
+- `PUT /empresas/:id` - Atualizar empresa (protegida - apenas dono)
+- `GET /empresas/:id/usuarios` - Listar usuários da empresa (protegida)
+
+#### Usuários
+- `POST /usuarios` - Registrar funcionário (protegida - apenas dono)
+- `POST /login` - Login e obter JWT (público)
+- `GET /usuarios` - Listar usuários da empresa (protegida)
+- `GET /usuarios/:id` - Buscar usuário específico (protegida)
+- `PUT /usuarios/:id` - Atualizar funcionário (protegida - apenas dono)
+- `DELETE /usuarios/:id` - Deletar funcionário (protegida - apenas dono)
+
+### Serviço 2 - Eventos, Chat e Notificações (3002)
+
+#### Eventos
 - `POST /eventos` - Criar evento (protegida)
-- `GET /eventos` - Listar eventos
-- `PUT /eventos/:id` - Atualizar evento (protegida)
-- `DELETE /eventos/:id` - Deletar evento (protegida)
-- `POST /eventos/:id/convidar` - Enviar convites (protegida)
+- `GET /eventos` - Listar eventos da empresa (protegida)
+- `GET /eventos/:id` - Buscar evento específico (protegida)
+- `PUT /eventos/:id` - Atualizar evento (protegida - apenas organizador)
+- `DELETE /eventos/:id` - Deletar evento (protegida - apenas organizador)
+- `POST /eventos/:id/participar` - Participar de evento (protegida)
+- `DELETE /eventos/:id/sair` - Sair de evento (protegida)
+
+#### Convites e Participantes
+- `POST /eventos/:evento_id/convidar` - Enviar convites (protegida - apenas organizador)
 - `GET /eventos/:id/participantes` - Listar participantes (protegida)
+- `DELETE /eventos/:evento_id/participantes/:user_id` - Remover participante (protegida - apenas organizador)
 - `PUT /participations/:id` - Aceitar/Recusar convite (protegida)
-- `GET /usuarios/:id/convites` - Convites pendentes (protegida)
-- `GET /usuarios/:id/aceitos` - Eventos aceitos (protegida)
+- `GET /usuarios/:user_id/convites` - Convites pendentes (protegida)
+- `GET /usuarios/:user_id/aceitos` - Eventos aceitos (protegida)
+
+#### Chat (WebSocket + REST)
+- `GET /eventos/:id/chat/messages` - Histórico de mensagens (protegida)
+- **WebSocket Events**:
+  - `join_event_chat` - Entrar no chat do evento
+  - `send_message` - Enviar mensagem
+  - `receive_message` - Receber mensagem
+  - `chat_error` - Erro no chat
+
+#### Notificações
+- `GET /notificacoes` - Listar notificações do usuário (protegida)
+- `PUT /notificacoes/:id/read` - Marcar notificação como lida (protegida)
+- **WebSocket Events**:
+  - `new_notification` - Nova notificação em tempo real
 
 ## 🐛 Troubleshooting
 
@@ -190,14 +308,19 @@ Para mais detalhes, consulte: **[CONFIG_ENV.md - Troubleshooting](CONFIG_ENV.md#
 
 ## 🌟 Destaques da Implementação
 
-- ✅ **13 endpoints** completos e funcionais
-- ✅ **~3.200 linhas** de código implementado
-- ✅ **7 arquivos** de documentação detalhada
-- ✅ **Interface moderna** e responsiva
-- ✅ **Segurança profissional** com JWT + bcrypt
+- ✅ **Arquitetura Multi-Tenant** completa com isolamento de dados
+- ✅ **25+ endpoints** REST completos e funcionais
+- ✅ **Chat em tempo real** com Socket.IO e persistência
+- ✅ **Sistema de notificações** completo (convites, updates, cancelamentos)
+- ✅ **Visualização de calendário** interativa
+- ✅ **Gerenciamento de funcionários** com hierarquia de permissões
+- ✅ **Interface moderna** e responsiva com React 19
+- ✅ **Segurança profissional** com JWT + bcrypt + isolamento multi-tenant
 - ✅ **Tolerância a falhas** com Circuit Breaker
+- ✅ **Automação** com cron jobs para limpeza
+- ✅ **WebSocket** para comunicação em tempo real
 - ✅ **Código limpo** e bem organizado
-- ✅ **Pronto para produção**
+- ✅ **Pronto para produção** com suporte SSL
 
 ## 🚀 Deploy em Produção
 
@@ -212,12 +335,6 @@ Configure as mesmas variáveis dos arquivos `.env`, ajustando:
 - Credenciais do banco de dados
 - JWT_SECRET forte e único
 
-## 📞 Suporte
-
-- 📖 **Documentação**: Veja [INDEX.md](INDEX.md)
-- 🧪 **Testes**: Veja [API_TESTS.md](API_TESTS.md)
-- ❓ **FAQ**: Veja [GUIA_RAPIDO.md](GUIA_RAPIDO.md#-faq)
-
 ## 📝 Licença
 
 Este projeto foi desenvolvido para fins educacionais e demonstração de sistema completo de microserviços com React.
@@ -228,6 +345,6 @@ Este projeto foi desenvolvido para fins educacionais e demonstração de sistema
 
 ---
 
-**Desenvolvido com ❤️ - Sistema Profissional de Agenda Compartilhada**
+**Desenvolvido com ❤️ - Sistema Profissional de Agenda Compartilhada Multi-Tenant**
 
-*Última atualização: Novembro 2025*
+*Última atualização: Dezembro 2025*
