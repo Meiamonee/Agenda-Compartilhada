@@ -14,6 +14,7 @@ import EventCard from "../components/EventCard";
 import InviteCard from "../components/InviteCard";
 import NotificationCard from "../components/NotificationCard";
 import Modal from "../components/Modal";
+import ConfirmDialog from "../components/ConfirmDialog";
 import Calendar from "../components/Calendar";
 import CalendarView from "../components/CalendarView";
 import ChatWidget from "../components/ChatWidget";
@@ -45,6 +46,13 @@ export default function Dashboard({ initialView = "list" }) {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showParticipantsModal, setShowParticipantsModal] = useState(false);
   const [showEmployeeModal, setShowEmployeeModal] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [confirmDialogConfig, setConfirmDialogConfig] = useState({
+    title: "",
+    message: "",
+    onConfirm: () => { },
+    variant: "danger"
+  });
 
   const [eventForm, setEventForm] = useState({
     title: "",
@@ -119,6 +127,12 @@ export default function Dashboard({ initialView = "list" }) {
       await loadNotifications();
       setSuccess(`🔔 ${message}`);
       setTimeout(() => setSuccess(''), 4000);
+    });
+
+    newSocket.on('event_participation_changed', async (data) => {
+      console.log('📊 Participação em evento atualizada:', data);
+      await loadEvents();
+      await loadAcceptedEvents();
     });
 
     newSocket.on('connect_error', (error) => {
@@ -296,24 +310,28 @@ export default function Dashboard({ initialView = "list" }) {
   };
 
   const handleDeleteEvent = async (event) => {
-    if (!window.confirm(`Tem certeza que deseja deletar o evento "${event.title}"?`)) {
-      return;
-    }
+    setConfirmDialogConfig({
+      title: "Deletar Evento",
+      message: `Tem certeza que deseja deletar o evento "${event.title}"? Esta ação não pode ser desfeita.`,
+      variant: "danger",
+      onConfirm: async () => {
+        setError("");
+        setSuccess("");
+        setLoading(true);
 
-    setError("");
-    setSuccess("");
-    setLoading(true);
-
-    try {
-      await eventService.deleteEvent(event.id);
-      setSuccess("Evento deletado com sucesso!");
-      await loadEvents();
-    } catch (err) {
-      const msg = err.response?.data?.error || "Erro ao deletar evento";
-      setError(msg);
-    } finally {
-      setLoading(false);
-    }
+        try {
+          await eventService.deleteEvent(event.id);
+          setSuccess("Evento deletado com sucesso!");
+          await loadEvents();
+        } catch (err) {
+          const msg = err.response?.data?.error || "Erro ao deletar evento";
+          setError(msg);
+        } finally {
+          setLoading(false);
+        }
+      }
+    });
+    setShowConfirmDialog(true);
   };
 
   const openEditModal = (event) => {
@@ -468,25 +486,29 @@ export default function Dashboard({ initialView = "list" }) {
   };
 
   const handleLeaveEvent = async (event) => {
-    if (!window.confirm(`Tem certeza que deseja sair do evento "${event.title}"?`)) {
-      return;
-    }
+    setConfirmDialogConfig({
+      title: "Sair do Evento",
+      message: `Tem certeza que deseja sair do evento "${event.title}"?`,
+      variant: "danger",
+      onConfirm: async () => {
+        setError("");
+        setSuccess("");
+        setLoading(true);
 
-    setError("");
-    setSuccess("");
-    setLoading(true);
-
-    try {
-      await eventService.leaveEvent(event.id);
-      setSuccess("Você saiu do evento.");
-      await loadAcceptedEvents();
-      await loadAllData();
-    } catch (err) {
-      const msg = err.response?.data?.error || "Erro ao sair do evento";
-      setError(msg);
-    } finally {
-      setLoading(false);
-    }
+        try {
+          await eventService.leaveEvent(event.id);
+          setSuccess("Você saiu do evento.");
+          await loadAcceptedEvents();
+          await loadAllData();
+        } catch (err) {
+          const msg = err.response?.data?.error || "Erro ao sair do evento";
+          setError(msg);
+        } finally {
+          setLoading(false);
+        }
+      }
+    });
+    setShowConfirmDialog(true);
   };
 
   const isUserParticipating = (eventId) => {
@@ -520,26 +542,30 @@ export default function Dashboard({ initialView = "list" }) {
   };
 
   const handleDeleteEmployee = async (employeeId) => {
-    if (!window.confirm("Tem certeza que deseja remover este funcionário?")) {
-      return;
-    }
+    setConfirmDialogConfig({
+      title: "Remover Funcionário",
+      message: "Tem certeza que deseja remover este funcionário? Esta ação não pode ser desfeita.",
+      variant: "danger",
+      onConfirm: async () => {
+        setError("");
+        setSuccess("");
+        setLoading(true);
 
-    setError("");
-    setSuccess("");
-    setLoading(true);
-
-    try {
-      await authService.deleteEmployee(employeeId);
-      setSuccess("Funcionário removido com sucesso!");
-      if (user?.empresa_id) {
-        await loadCompanyUsers(user.empresa_id);
+        try {
+          await authService.deleteEmployee(employeeId);
+          setSuccess("Funcionário removido com sucesso!");
+          if (user?.empresa_id) {
+            await loadCompanyUsers(user.empresa_id);
+          }
+        } catch (err) {
+          const msg = err.response?.data?.error || "Erro ao remover funcionário";
+          setError(msg);
+        } finally {
+          setLoading(false);
+        }
       }
-    } catch (err) {
-      const msg = err.response?.data?.error || "Erro ao remover funcionário";
-      setError(msg);
-    } finally {
-      setLoading(false);
-    }
+    });
+    setShowConfirmDialog(true);
   };
 
   const handleDismissNotification = async (notification) => {
@@ -1013,8 +1039,18 @@ export default function Dashboard({ initialView = "list" }) {
         </div>
       </Modal>
 
-      {/* Chat Widget */}
       <ChatWidget user={user} currentEventId={selectedEvent?.id} />
-    </Layout >
+
+      <ConfirmDialog
+        isOpen={showConfirmDialog}
+        onClose={() => setShowConfirmDialog(false)}
+        onConfirm={confirmDialogConfig.onConfirm}
+        title={confirmDialogConfig.title}
+        message={confirmDialogConfig.message}
+        variant={confirmDialogConfig.variant}
+        confirmText="Confirmar"
+        cancelText="Cancelar"
+      />
+    </Layout>
   );
 }

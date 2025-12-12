@@ -681,6 +681,12 @@ app.post("/eventos/:id/participar", authorize, async (req, res) => {
             [id, req.userId]
         );
 
+        io.emit('event_participation_changed', {
+            eventId: id,
+            userId: req.userId,
+            action: 'joined'
+        });
+
         res.json({ message: "Participação confirmada!", participation: result.rows[0] });
 
     } catch (err) {
@@ -707,6 +713,12 @@ app.delete("/eventos/:id/sair", authorize, async (req, res) => {
         if (result.rows.length === 0) {
             return res.status(404).json({ error: "Você não está participando deste evento." });
         }
+
+        io.emit('event_participation_changed', {
+            eventId: id,
+            userId: req.userId,
+            action: 'left'
+        });
 
         res.json({ message: "Você saiu do evento." });
 
