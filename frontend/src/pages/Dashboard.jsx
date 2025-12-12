@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { io } from 'socket.io-client';
 import {
   authService,
   eventService,
@@ -23,6 +24,7 @@ export default function Dashboard({ initialView = "list" }) {
   // Estado do usuário
   const [user, setUser] = useState(null);
   const [userId, setUserId] = useState(null);
+  const [socket, setSocket] = useState(null);
 
   // Estados de dados
   const [events, setEvents] = useState([]);
@@ -96,6 +98,52 @@ export default function Dashboard({ initialView = "list" }) {
   useEffect(() => {
     setViewMode(initialView);
   }, [initialView]);
+
+  // Conectar ao Socket.IO para notificações em tempo real
+  useEffect(() => {
+    if (!user) return;
+
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    const EVENTS_API_URL = import.meta.env.VITE_EVENTS_API_URL;
+    const newSocket = io(EVENTS_API_URL, {
+      auth: { token },
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      reconnectionAttempts: 5
+    });
+
+    newSocket.on('connect', () => {
+      console.log('✅ Conectado ao sistema de notificações em tempo real');
+    });
+
+    newSocket.on('disconnect', () => {
+      console.log('❌ Desconectado do sistema de notificações');
+    });
+
+    // Escutar novas notificações
+    newSocket.on('new_notification', async (message) => {
+      console.log('🔔 Nova notificação recebida:', message);
+      // Recarregar notificações
+      await loadNotifications();
+      // Mostrar mensagem de sucesso temporária
+      setSuccess(`🔔 ${message}`);
+      setTimeout(() => setSuccess(''), 4000);
+    });
+
+    newSocket.on('connect_error', (error) => {
+      console.error('❌ Erro ao conectar notificações:', error.message);
+    });
+
+    setSocket(newSocket);
+
+    return () => {
+      console.log('🔌 Desconectando Socket.IO de notificações');
+      newSocket.close();
+    };
+  }, [user]);
 
   // Função para carregar todos os dados
   const loadAllData = async () => {
