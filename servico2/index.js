@@ -13,7 +13,7 @@ require("dotenv").config();
 // Configurações do ambiente: Use seus valores do .env aqui
 const JWT_SECRET = process.env.JWT_SECRET || "dois_poneis_saltitam_pelo_campo";
 const servico1Url = process.env.SERVICO1_URL || "http://localhost:3001";
-const PORT = process.env.PORT || 3002;
+const PORT = 3002;
 
 // Configuração do Banco de Dados
 const pool = new Pool({
