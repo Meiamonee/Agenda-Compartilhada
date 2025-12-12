@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import React from "react";
 import Button from "./Button";
+import { authService } from "../api/apiService";
 
 export default function EventCard({
   event,
@@ -15,6 +16,7 @@ export default function EventCard({
   onLeave
 }) {
   const [showMenu, setShowMenu] = useState(false);
+  const [organizerEmail, setOrganizerEmail] = useState("");
   const menuRef = useRef(null);
   const startDate = new Date(event.start_time);
   const endDate = new Date(event.end_time);
@@ -28,6 +30,21 @@ export default function EventCard({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    const fetchOrganizerEmail = async () => {
+      try {
+        const user = await authService.getUserById(event.organizer_id);
+        setOrganizerEmail(user.email);
+      } catch (err) {
+        console.error("Erro ao buscar organizador:", err);
+        setOrganizerEmail("Desconhecido");
+      }
+    };
+    if (event.organizer_id) {
+      fetchOrganizerEmail();
+    }
+  }, [event.organizer_id]);
 
   const formatTime = (date) => {
     return date.toLocaleTimeString("pt-BR", {
@@ -134,7 +151,7 @@ export default function EventCard({
           </div>
           <div className="flex items-center gap-2">
             <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-            <span className="truncate">Org: {event.organizer_email}</span>
+            <span className="truncate">Org: {organizerEmail}</span>
           </div>
         </div>
       </div>

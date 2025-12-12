@@ -993,10 +993,10 @@ export default function Dashboard({ initialView = "list" }) {
                 <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-xs font-bold text-gray-600">
-                      {p.email?.charAt(0).toUpperCase() || "?"}
+                      {p.user_email?.charAt(0).toUpperCase() || "?"}
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-gray-900">{p.email}</p>
+                      <p className="text-sm font-medium text-gray-900">{p.user_email}</p>
                       <p className="text-xs text-gray-500">
                         Status: <span className={`font-medium ${p.status === 'accepted' ? 'text-green-600' :
                           p.status === 'declined' ? 'text-red-600' : 'text-yellow-600'
