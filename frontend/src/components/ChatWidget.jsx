@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
 import Button from './Button';
 
+const EVENTS_API_URL = import.meta.env.VITE_EVENTS_API_URL || 'http://localhost:3002';
+
 export default function ChatWidget({ user, currentEventId = null }) {
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState([]);
@@ -25,10 +27,14 @@ export default function ChatWidget({ user, currentEventId = null }) {
     useEffect(() => {
         if (!user?.token) return;
 
-        const newSocket = io('http://localhost:3002', {
+        const newSocket = io(EVENTS_API_URL, {
             auth: {
                 token: user.token
-            }
+            },
+            reconnection: true,
+            reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000,
+            reconnectionAttempts: 5
         });
 
         newSocket.on('connect', () => {
@@ -36,13 +42,35 @@ export default function ChatWidget({ user, currentEventId = null }) {
             setConnected(true);
         });
 
-        newSocket.on('disconnect', () => {
-            console.log('❌ Desconectado do chat');
+        newSocket.on('disconnect', (reason) => {
+            console.log('❌ Desconectado do chat. Motivo:', reason);
+            setConnected(false);
+        });
+
+        newSocket.on('reconnect', (attemptNumber) => {
+            console.log('🔄 Reconectado ao chat após', attemptNumber, 'tentativa(s)');
+            setConnected(true);
+            // Rejuntar ao chat do evento atual se existir
+            if (currentEventId) {
+                newSocket.emit('join_event_chat', currentEventId);
+            }
+        });
+
+        newSocket.on('reconnect_attempt', (attemptNumber) => {
+            console.log('🔄 Tentando reconectar... Tentativa', attemptNumber);
+        });
+
+        newSocket.on('reconnect_error', (error) => {
+            console.error('❌ Erro ao tentar reconectar:', error.message);
+        });
+
+        newSocket.on('reconnect_failed', () => {
+            console.error('❌ Falha ao reconectar após todas as tentativas');
             setConnected(false);
         });
 
         newSocket.on('chat_error', (error) => {
-            console.error('Erro no chat:', error);
+            console.error('❌ Erro no chat:', error);
             alert(error);
         });
 
@@ -83,7 +111,7 @@ export default function ChatWidget({ user, currentEventId = null }) {
     // Carregar histórico de mensagens
     const loadChatHistory = async (eventId) => {
         try {
-            const response = await fetch(`http://localhost:3002/eventos/${eventId}/chat/messages`, {
+            const response = await fetch(`${EVENTS_API_URL}/eventos/${eventId}/chat/messages`, {
                 headers: {
                     'Authorization': `Bearer ${user.token}`
                 }
@@ -202,8 +230,8 @@ export default function ChatWidget({ user, currentEventId = null }) {
                                             )}
                                             <div
                                                 className={`rounded-2xl px-4 py-2 ${isOwnMessage
-                                                        ? 'bg-primary-600 text-white rounded-br-none'
-                                                        : 'bg-white text-gray-900 rounded-bl-none border border-gray-200'
+                                                    ? 'bg-primary-600 text-white rounded-br-none'
+                                                    : 'bg-white text-gray-900 rounded-bl-none border border-gray-200'
                                                     }`}
                                             >
                                                 <p className="text-sm break-words">{msg.text}</p>
