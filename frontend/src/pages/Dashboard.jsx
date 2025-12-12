@@ -684,7 +684,9 @@ export default function Dashboard({ initialView = "list" }) {
         ) : viewMode === "calendar" ? (
           <div className="animate-fade-in">
             <CalendarView
-              events={[...events, ...acceptedEvents]}
+              events={[...events, ...acceptedEvents].filter((event, index, self) =>
+                index === self.findIndex((e) => e.id === event.id)
+              )}
               onDateClick={(date) => {
                 setEventForm(prev => ({ ...prev, start_date: date.toISOString().split('T')[0] }));
                 setShowCreateModal(true);
