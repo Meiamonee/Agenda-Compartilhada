@@ -21,36 +21,31 @@ import ChatWidget from "../components/ChatWidget";
 export default function Dashboard({ initialView = "list" }) {
   const navigate = useNavigate();
 
-  // Estado do usuário
   const [user, setUser] = useState(null);
   const [userId, setUserId] = useState(null);
   const [socket, setSocket] = useState(null);
 
-  // Estados de dados
   const [events, setEvents] = useState([]);
   const [myEvents, setMyEvents] = useState([]);
   const [acceptedEvents, setAcceptedEvents] = useState([]);
   const [invites, setInvites] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [users, setUsers] = useState([]);
-  const [companyUsers, setCompanyUsers] = useState([]); // Novos usuários da empresa
+  const [companyUsers, setCompanyUsers] = useState([]);
   const [participants, setParticipants] = useState([]);
 
-  // Estados de UI
-  const [activeTab, setActiveTab] = useState("all"); // all, my, accepted, invites, employees
-  const [viewMode, setViewMode] = useState(initialView); // list, calendar
+  const [activeTab, setActiveTab] = useState("all");
+  const [viewMode, setViewMode] = useState(initialView);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  // Estados de modais
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showParticipantsModal, setShowParticipantsModal] = useState(false);
-  const [showEmployeeModal, setShowEmployeeModal] = useState(false); // Modal de funcionário
+  const [showEmployeeModal, setShowEmployeeModal] = useState(false);
 
-  // Estados de formulários
   const [eventForm, setEventForm] = useState({
     title: "",
     description: "",
@@ -58,7 +53,7 @@ export default function Dashboard({ initialView = "list" }) {
     start_time: "",
     is_public: true
   });
-  const [employeeForm, setEmployeeForm] = useState({ // Form de funcionário
+  const [employeeForm, setEmployeeForm] = useState({
     nome: "",
     email: "",
     senha: ""
@@ -67,7 +62,6 @@ export default function Dashboard({ initialView = "list" }) {
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [selectedUsers, setSelectedUsers] = useState([]);
 
-  // Inicialização
   useEffect(() => {
     const userString = localStorage.getItem("user");
     const token = localStorage.getItem("token");
@@ -87,19 +81,16 @@ export default function Dashboard({ initialView = "list" }) {
     }
   }, [navigate]);
 
-  // Carrega dados quando o userId está disponível
   useEffect(() => {
     if (userId) {
       loadAllData();
     }
   }, [userId]);
 
-  // Atualiza o modo de visualização se a prop mudar
   useEffect(() => {
     setViewMode(initialView);
   }, [initialView]);
 
-  // Conectar ao Socket.IO para notificações em tempo real
   useEffect(() => {
     if (!user) return;
 
@@ -123,12 +114,9 @@ export default function Dashboard({ initialView = "list" }) {
       console.log('❌ Desconectado do sistema de notificações');
     });
 
-    // Escutar novas notificações
     newSocket.on('new_notification', async (message) => {
       console.log('🔔 Nova notificação recebida:', message);
-      // Recarregar notificações
       await loadNotifications();
-      // Mostrar mensagem de sucesso temporária
       setSuccess(`🔔 ${message}`);
       setTimeout(() => setSuccess(''), 4000);
     });
@@ -145,7 +133,6 @@ export default function Dashboard({ initialView = "list" }) {
     };
   }, [user]);
 
-  // Função para carregar todos os dados
   const loadAllData = async () => {
     setLoading(true);
     try {
@@ -157,7 +144,6 @@ export default function Dashboard({ initialView = "list" }) {
         loadUsers()
       ];
 
-      // Se for dono, carrega funcionários da empresa
       if (user?.isOwner && user?.empresa_id) {
         promises.push(loadCompanyUsers(user.empresa_id));
       }
@@ -170,12 +156,10 @@ export default function Dashboard({ initialView = "list" }) {
     }
   };
 
-  // Carregar todos os eventos
   const loadEvents = async () => {
     try {
       const data = await eventService.getAllEvents();
       setEvents(data);
-      // Filtra eventos do usuário atual
       const myEventsFiltered = data.filter(e => e.organizer_id === userId);
       setMyEvents(myEventsFiltered);
     } catch (err) {
@@ -184,7 +168,6 @@ export default function Dashboard({ initialView = "list" }) {
     }
   };
 
-  // Carregar convites pendentes
   const loadInvites = async () => {
     try {
       const data = await participationService.getUserInvites(userId);
@@ -194,7 +177,6 @@ export default function Dashboard({ initialView = "list" }) {
     }
   };
 
-  // Carregar notificações
   const loadNotifications = async () => {
     try {
       const data = await notificationService.getNotifications();
@@ -204,7 +186,6 @@ export default function Dashboard({ initialView = "list" }) {
     }
   };
 
-  // Carregar eventos aceitos
   const loadAcceptedEvents = async () => {
     try {
       const data = await participationService.getUserAcceptedEvents(userId);
@@ -214,11 +195,9 @@ export default function Dashboard({ initialView = "list" }) {
     }
   };
 
-  // Carregar lista de usuários (para convites)
   const loadUsers = async () => {
     try {
       const data = await authService.getAllUsers();
-      // Remove o usuário atual da lista
       const filteredUsers = data.filter(u => u.id !== userId);
       setUsers(filteredUsers);
     } catch (err) {
@@ -226,7 +205,6 @@ export default function Dashboard({ initialView = "list" }) {
     }
   };
 
-  // Carregar usuários da empresa (para gestão)
   const loadCompanyUsers = async (empresaId) => {
     try {
       const data = await authService.getCompanyUsers(empresaId);
@@ -236,7 +214,6 @@ export default function Dashboard({ initialView = "list" }) {
     }
   };
 
-  // Criar evento
   const handleCreateEvent = async (e) => {
     e.preventDefault();
     setError("");
@@ -244,15 +221,12 @@ export default function Dashboard({ initialView = "list" }) {
     setLoading(true);
 
     try {
-      // Combinar data e hora em formato ISO
       const startDateTime = `${eventForm.start_date}T${eventForm.start_time}:00`;
 
-      // Criar data de fim (1 hora depois por padrão)
       const startDate = new Date(startDateTime);
-      const endDate = new Date(startDate.getTime() + 60 * 60 * 1000); // +1 hora
+      const endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
       const endDateTime = endDate.toISOString();
 
-      // Criar o evento
       const newEvent = await eventService.createEvent(
         eventForm.title,
         eventForm.description,
@@ -262,7 +236,6 @@ export default function Dashboard({ initialView = "list" }) {
         eventForm.is_public
       );
 
-      // Se há usuários selecionados, enviar convites
       if (selectedUsers.length > 0) {
         try {
           await eventService.inviteUsers(newEvent.id, selectedUsers);
@@ -287,7 +260,6 @@ export default function Dashboard({ initialView = "list" }) {
     }
   };
 
-  // Atualizar evento
   const handleUpdateEvent = async (e) => {
     e.preventDefault();
     setError("");
@@ -295,10 +267,8 @@ export default function Dashboard({ initialView = "list" }) {
     setLoading(true);
 
     try {
-      // Combinar data e hora e converter para ISO string
       const startDateTime = new Date(`${eventForm.start_date}T${eventForm.start_time}:00`).toISOString();
 
-      // Criar data de fim (1 hora depois)
       const startDate = new Date(startDateTime);
       const endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
       const endDateTime = endDate.toISOString();
@@ -325,7 +295,6 @@ export default function Dashboard({ initialView = "list" }) {
     }
   };
 
-  // Deletar evento
   const handleDeleteEvent = async (event) => {
     if (!window.confirm(`Tem certeza que deseja deletar o evento "${event.title}"?`)) {
       return;
@@ -347,11 +316,9 @@ export default function Dashboard({ initialView = "list" }) {
     }
   };
 
-  // Abrir modal de edição
   const openEditModal = (event) => {
     setEditingEvent(event);
 
-    // Separar data e hora do start_time
     let startDate = "";
     let startTime = "";
     if (event.start_time) {
@@ -370,16 +337,13 @@ export default function Dashboard({ initialView = "list" }) {
     setShowEditModal(true);
   };
 
-  // Abrir modal de convite
   const openInviteModal = async (event) => {
     setSelectedEvent(event);
     setSelectedUsers([]);
     setShowInviteModal(true);
 
-    // Carregar participantes atuais
     try {
       const data = await eventService.getEventParticipants(event.id);
-      // Map user_email to email for consistency
       const mappedData = data.map(p => ({
         ...p,
         email: p.user_email || p.email
@@ -390,7 +354,6 @@ export default function Dashboard({ initialView = "list" }) {
     }
   };
 
-  // Toggle seleção de usuário para criar evento
   const toggleUserForCreation = (userId) => {
     setSelectedUsers(prev =>
       prev.includes(userId)
@@ -399,7 +362,6 @@ export default function Dashboard({ initialView = "list" }) {
     );
   };
 
-  // Convidar usuário individual
   const handleInviteUser = async (user) => {
     setError("");
     setSuccess("");
@@ -408,12 +370,10 @@ export default function Dashboard({ initialView = "list" }) {
       await eventService.inviteUsers(selectedEvent.id, [user.id]);
       setSuccess(`Convite enviado para ${user.email}!`);
 
-      // Atualizar lista de participantes
       if (showParticipantsModal) {
         await handleViewParticipants(selectedEvent);
       }
 
-      // Aguardar um pouco para o usuário ver a mensagem
       setTimeout(() => {
         setSuccess("");
       }, 3000);
@@ -427,7 +387,6 @@ export default function Dashboard({ initialView = "list" }) {
     }
   };
 
-  // Ver participantes
   const handleViewParticipants = async (event) => {
     setSelectedEvent(event);
     setLoading(true);
@@ -449,7 +408,6 @@ export default function Dashboard({ initialView = "list" }) {
     }
   };
 
-  // Aceitar convite
   const handleAcceptInvite = async (invite) => {
     setError("");
     setSuccess("");
@@ -471,7 +429,6 @@ export default function Dashboard({ initialView = "list" }) {
     }
   };
 
-  // Recusar convite
   const handleDeclineInvite = async (invite) => {
     setError("");
     setSuccess("");
@@ -492,7 +449,6 @@ export default function Dashboard({ initialView = "list" }) {
     }
   };
 
-  // Participar de evento
   const handleJoinEvent = async (event) => {
     setError("");
     setSuccess("");
@@ -511,7 +467,6 @@ export default function Dashboard({ initialView = "list" }) {
     }
   };
 
-  // Sair de evento
   const handleLeaveEvent = async (event) => {
     if (!window.confirm(`Tem certeza que deseja sair do evento "${event.title}"?`)) {
       return;
@@ -534,17 +489,14 @@ export default function Dashboard({ initialView = "list" }) {
     }
   };
 
-  // Verificar se o usuário está participando de um evento
   const isUserParticipating = (eventId) => {
     return acceptedEvents.some(e => e.id === eventId);
   };
 
-  // Verificar se o usuário foi convidado para um evento
   const isUserInvited = (eventId) => {
     return invites.some(e => e.id === eventId) || acceptedEvents.some(e => e.id === eventId);
   };
 
-  // Criar funcionário
   const handleCreateEmployee = async (e) => {
     e.preventDefault();
     setError("");
@@ -556,7 +508,6 @@ export default function Dashboard({ initialView = "list" }) {
       setSuccess("Funcionário criado com sucesso!");
       setShowEmployeeModal(false);
       setEmployeeForm({ nome: "", email: "", senha: "" });
-      // Recarrega lista de funcionários
       if (user?.empresa_id) {
         await loadCompanyUsers(user.empresa_id);
       }
@@ -568,7 +519,6 @@ export default function Dashboard({ initialView = "list" }) {
     }
   };
 
-  // Deletar funcionário
   const handleDeleteEmployee = async (employeeId) => {
     if (!window.confirm("Tem certeza que deseja remover este funcionário?")) {
       return;
@@ -592,11 +542,9 @@ export default function Dashboard({ initialView = "list" }) {
     }
   };
 
-  // Marcar notificação como lida
   const handleDismissNotification = async (notification) => {
     try {
       await notificationService.markAsRead(notification.id);
-      // Remove da lista localmente
       setNotifications(prev => prev.filter(n => n.id !== notification.id));
     } catch (err) {
       console.error("Erro ao marcar notificação como lida:", err);
@@ -622,7 +570,6 @@ export default function Dashboard({ initialView = "list" }) {
         </div>
       }
     >
-      {/* Feedback Messages */}
       {
         (error || success) && (
           <div className="mb-6 animate-fade-in">
@@ -642,7 +589,6 @@ export default function Dashboard({ initialView = "list" }) {
         )
       }
 
-      {/* Tabs */}
       <div className="mb-8 border-b border-gray-200">
         <div className="flex space-x-8 overflow-x-auto pb-1">
           {tabs.map((tab) => (
@@ -674,7 +620,6 @@ export default function Dashboard({ initialView = "list" }) {
         </div>
       </div>
 
-      {/* Content Grid */}
       {
         loading ? (
           <div className="flex flex-col items-center justify-center py-20">

@@ -1,42 +1,35 @@
-
 const express = require("express");
 const { Pool } = require("pg");
 const cors = require('cors');
 const axios = require("axios");
 const Opossum = require("opossum");
 const jwt = require("jsonwebtoken");
-const http = require('http'); 
-const { Server } = require("socket.io"); 
-const cron = require('node-cron'); 
+const http = require('http');
+const { Server } = require("socket.io");
+const cron = require('node-cron');
 require("dotenv").config();
 
-// Configurações do ambiente: Use seus valores do .env aqui
 const JWT_SECRET = process.env.JWT_SECRET || "dois_poneis_saltitam_pelo_campo";
 const servico1Url = process.env.SERVICO1_URL || "http://localhost:3001";
 const PORT = 3002;
 
-// Configuração do Banco de Dados
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false } // Configuração para Render/produção
+    ssl: { rejectUnauthorized: false }
 });
 
 const app = express();
 app.use(express.json());
 app.use(cors());
 
-// Configuração do Servidor HTTP e WebSockets
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: "*", 
+        origin: "*",
         methods: ["GET", "POST", "PUT", "DELETE"]
     }
 });
 
-// =================================
-// Middleware de Autorização (JWT)
-// =================================
 const authorize = (req, res, next) => {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -56,9 +49,6 @@ const authorize = (req, res, next) => {
     }
 };
 
-// =================================
-// 🚨 Circuit Breaker (Tolerância a Falhas)
-// =================================
 async function callUserService(endpoint, token) {
     if (!servico1Url) {
         throw new Error("SERVICO1_URL não configurada.");
@@ -99,25 +89,19 @@ async function getUserDetails(userId, token) {
     }
 }
 
-// Helper para criar notificação
 async function createNotification(userId, message, type, eventId) {
     try {
-        // Insere notificação
         await pool.query(
             `INSERT INTO notificacoes (user_id, message, type, event_id) VALUES ($1, $2, $3, $4)`,
             [userId, message, type, eventId]
         );
-        // Tenta enviar notificação em tempo real (não crítica)
-        io.to(`user_${userId}`).emit('new_notification', message); 
+        io.to(`user_${userId}`).emit('new_notification', message);
 
     } catch (err) {
         console.error("Erro ao criar notificação:", err);
     }
 }
 
-// ===============================================
-// 💬 Lógica do Chat (Socket.IO)
-// ===============================================
 
 io.use((socket, next) => {
     const token = socket.handshake.auth.token;
@@ -148,14 +132,14 @@ io.on('connection', (socket) => {
             if (eventCheck.rows.length === 0) {
                 return socket.emit('chat_error', 'Evento não encontrado ou acesso negado.');
             }
-            
+
             const participationCheck = await pool.query(
                 "SELECT status FROM participacoes WHERE event_id = $1 AND user_id = $2",
                 [eventId, socket.userId]
             );
 
             if (participationCheck.rows.length === 0 || participationCheck.rows[0].status === 'declined') {
-                 return socket.emit('chat_error', 'Você não está participando deste evento.');
+                return socket.emit('chat_error', 'Você não está participando deste evento.');
             }
 
             socket.join(`event_${eventId}`);
@@ -181,7 +165,7 @@ io.on('connection', (socket) => {
 
             // Usa o token do handshake para autenticar no Serviço 1 (Usuários)
             const userDetails = await getUserDetails(socket.userId, socket.handshake.auth.token);
-            
+
             // Broadcast da mensagem para todos na sala do evento
             io.to(`event_${socket.eventId}`).emit('receive_message', {
                 text: text,
@@ -201,15 +185,11 @@ io.on('connection', (socket) => {
     });
 });
 
-// ===================================================
-// ⏰ Lógica de Limpeza Automática (Cron Job)
-// Deleta eventos que passaram há mais de 1 mês
-// ===================================================
 cron.schedule('0 0 * * *', async () => {
     console.log('🧹 Executando tarefa de limpeza de eventos antigos...');
     const oneMonthAgo = new Date();
-    oneMonthAgo.setDate(oneMonthAgo.getDate() - 30); 
-    
+    oneMonthAgo.setDate(oneMonthAgo.getDate() - 30);
+
     const deleteQuery = `
         DELETE FROM eventos 
         WHERE end_time < $1
@@ -224,12 +204,9 @@ cron.schedule('0 0 * * *', async () => {
     }
 }, {
     scheduled: true,
-    timezone: "America/Sao_Paulo" 
+    timezone: "America/Sao_Paulo"
 });
 
-// ===============================================
-// Rota GET /eventos/:id/chat/messages (Histórico do Chat)
-// ===============================================
 app.get("/eventos/:id/chat/messages", authorize, async (req, res) => {
     const { id } = req.params;
 
@@ -271,9 +248,6 @@ app.get("/eventos/:id/chat/messages", authorize, async (req, res) => {
 });
 
 
-// ===============================================
-// 1. Rota POST /eventos (Criação de Evento)
-// ===============================================
 app.post("/eventos", authorize, async (req, res) => {
     const { title, description, start_time, end_time, organizer_id, is_public } = req.body;
 
@@ -292,7 +266,7 @@ app.post("/eventos", authorize, async (req, res) => {
             "INSERT INTO eventos (title, description, start_time, end_time, organizer_id, is_public, empresa_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *",
             [title, description, start_time, end_time, organizer_id, is_public !== false, req.empresaId]
         );
-        
+
         // Insere o organizador como participante aceito por padrão
         await pool.query(
             "INSERT INTO participacoes (event_id, user_id, status) VALUES ($1, $2, 'accepted')",
@@ -307,9 +281,6 @@ app.post("/eventos", authorize, async (req, res) => {
     }
 });
 
-// ==================================================================
-// 2. Rota POST /eventos/:evento_id/convidar (Envio de Convites)
-// ==================================================================
 app.post("/eventos/:evento_id/convidar", authorize, async (req, res) => {
     const { evento_id } = req.params;
     const { user_ids } = req.body;
@@ -345,7 +316,7 @@ app.post("/eventos/:evento_id/convidar", authorize, async (req, res) => {
 
         // Notificar novos convidados
         for (const invitation of result.rows) {
-             await createNotification(invitation.user_id, `Você foi convidado para o evento: "${eventTitle}"`, 'invite', evento_id);
+            await createNotification(invitation.user_id, `Você foi convidado para o evento: "${eventTitle}"`, 'invite', evento_id);
         }
 
         res.status(201).json({
@@ -359,9 +330,6 @@ app.post("/eventos/:evento_id/convidar", authorize, async (req, res) => {
     }
 });
 
-// ====================================================================
-// 3. Rota PUT /participations/:id (Aceitar/Recusar Convite)
-// ====================================================================
 app.put("/participations/:id", authorize, async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
@@ -405,9 +373,6 @@ app.put("/participations/:id", authorize, async (req, res) => {
     }
 });
 
-// =================================================================
-// 4. Rota GET /eventos (Listar Eventos da Empresa)
-// =================================================================
 app.get("/eventos", authorize, async (req, res) => {
     try {
         const result = await pool.query("SELECT * FROM eventos WHERE empresa_id = $1 ORDER BY start_time ASC", [req.empresaId]);
@@ -436,9 +401,6 @@ app.get("/eventos", authorize, async (req, res) => {
     }
 });
 
-// ====================================================================
-// 5. Rota GET /usuarios/:user_id/convites (Listar Convites de um Usuário)
-// ====================================================================
 app.get("/usuarios/:user_id/convites", authorize, async (req, res) => {
     const { user_id } = req.params;
 
@@ -462,9 +424,6 @@ app.get("/usuarios/:user_id/convites", authorize, async (req, res) => {
     }
 });
 
-// ====================================================================
-// 6. Rota GET /usuarios/:user_id/aceitos (Listar Eventos Aceitos de um Usuário)
-// ====================================================================
 app.get("/usuarios/:user_id/aceitos", authorize, async (req, res) => {
     const { user_id } = req.params;
 
@@ -488,9 +447,6 @@ app.get("/usuarios/:user_id/aceitos", authorize, async (req, res) => {
     }
 });
 
-// ====================================================================
-// 7. Rota GET /eventos/:id (Detalhes de um Evento Específico)
-// ====================================================================
 app.get("/eventos/:id", authorize, async (req, res) => {
     const { id } = req.params;
 
@@ -511,9 +467,6 @@ app.get("/eventos/:id", authorize, async (req, res) => {
     }
 });
 
-// ====================================================================
-// 8. Rota PUT /eventos/:id (Atualizar Evento) 
-// ====================================================================
 app.put("/eventos/:id", authorize, async (req, res) => {
     const { id } = req.params;
     const { title, description, start_time, end_time, is_public } = req.body;
@@ -566,7 +519,6 @@ app.put("/eventos/:id", authorize, async (req, res) => {
 
         const result = await pool.query(query, values);
 
-        // Notificar participantes sobre a atualização
         try {
             const participants = await pool.query("SELECT user_id FROM participacoes WHERE event_id = $1", [id]);
             for (const p of participants.rows) {
@@ -586,9 +538,6 @@ app.put("/eventos/:id", authorize, async (req, res) => {
     }
 });
 
-// ====================================================================
-// 9. Rota DELETE /eventos/:id (Deletar Evento) 
-// ====================================================================
 app.delete("/eventos/:id", authorize, async (req, res) => {
     const { id } = req.params;
 
@@ -609,10 +558,8 @@ app.delete("/eventos/:id", authorize, async (req, res) => {
         const participants = await pool.query("SELECT user_id FROM participacoes WHERE event_id = $1", [id]);
         const eventTitle = eventCheck.rows[0].title;
 
-        // Deleta o evento (CASCADE)
         await pool.query("DELETE FROM eventos WHERE id = $1", [id]);
 
-        // Notificar participantes sobre cancelamento
         try {
             for (const p of participants.rows) {
                 if (p.user_id !== req.userId) {
@@ -631,9 +578,6 @@ app.delete("/eventos/:id", authorize, async (req, res) => {
     }
 });
 
-// ====================================================================
-// 10. Rota GET /eventos/:id/participantes (Listar Participantes) 
-// ====================================================================
 app.get("/eventos/:id/participantes", authorize, async (req, res) => {
     const { id } = req.params;
 
@@ -666,7 +610,7 @@ app.get("/eventos/:id/participantes", authorize, async (req, res) => {
                     return {
                         ...participant,
                         user_email: userDetails.email,
-                        is_owner: userDetails.is_owner 
+                        is_owner: userDetails.is_owner
                     };
                 } catch (err) {
                     return {
@@ -685,9 +629,6 @@ app.get("/eventos/:id/participantes", authorize, async (req, res) => {
     }
 });
 
-// ====================================================================
-// 11. Rota DELETE /eventos/:evento_id/participantes/:user_id (Remover Participante) - ISOLADA
-// ====================================================================
 app.delete("/eventos/:evento_id/participantes/:user_id", authorize, async (req, res) => {
     const { evento_id, user_id } = req.params;
 
@@ -722,9 +663,6 @@ app.delete("/eventos/:evento_id/participantes/:user_id", authorize, async (req, 
     }
 });
 
-// ====================================================================
-// 12. Rota POST /eventos/:id/participar (Participar de um Evento)
-// ====================================================================
 app.post("/eventos/:id/participar", authorize, async (req, res) => {
     const { id } = req.params;
 
@@ -735,7 +673,6 @@ app.post("/eventos/:id/participar", authorize, async (req, res) => {
             return res.status(404).json({ error: "Evento não encontrado nesta empresa." });
         }
 
-        // Insere ou atualiza participação para 'accepted'
         const result = await pool.query(
             `INSERT INTO participacoes (event_id, user_id, status) 
              VALUES ($1, $2, 'accepted') 
@@ -752,9 +689,6 @@ app.post("/eventos/:id/participar", authorize, async (req, res) => {
     }
 });
 
-// ====================================================================
-// 13. Rota DELETE /eventos/:id/sair (Sair de um Evento)
-// ====================================================================
 app.delete("/eventos/:id/sair", authorize, async (req, res) => {
     const { id } = req.params;
 
@@ -765,7 +699,6 @@ app.delete("/eventos/:id/sair", authorize, async (req, res) => {
             return res.status(404).json({ error: "Evento não encontrado nesta empresa." });
         }
 
-        // Remove a participação do usuário logado
         const result = await pool.query(
             "DELETE FROM participacoes WHERE event_id = $1 AND user_id = $2 RETURNING *",
             [id, req.userId]
@@ -783,9 +716,6 @@ app.delete("/eventos/:id/sair", authorize, async (req, res) => {
     }
 });
 
-// ====================================================================
-// 14. Rota GET /notificacoes (Listar Notificações)
-// ====================================================================
 app.get("/notificacoes", authorize, async (req, res) => {
     try {
         const result = await pool.query(
@@ -802,9 +732,6 @@ app.get("/notificacoes", authorize, async (req, res) => {
     }
 });
 
-// ====================================================================
-// 15. Rota PUT /notificacoes/:id/read (Deletar após visualizar)
-// ====================================================================
 app.put("/notificacoes/:id/read", authorize, async (req, res) => {
     const { id } = req.params;
     try {
@@ -820,7 +747,4 @@ app.put("/notificacoes/:id/read", authorize, async (req, res) => {
 });
 
 
-// =======================
-// Inicializar servidor
-// =======================
 server.listen(PORT, () => console.log(`🚀 Serviço de eventos (HTTP/WS) rodando na porta ${PORT}`));

@@ -86,7 +86,6 @@ export default function EventCard({
               <span className="px-2 py-1 text-xs font-semibold bg-gray-100 text-gray-600 rounded-full">Privado</span>
             )}
 
-            {/* Menu para Organizador */}
             {isOrganizer && (
               <div className="relative" ref={menuRef}>
                 <button
@@ -143,7 +142,6 @@ export default function EventCard({
               </div>
             )}
 
-            {/* Menu para Participante (não organizador) */}
             {!isOrganizer && isParticipating && onOpenChat && (
               <div className="relative" ref={menuRef}>
                 <button

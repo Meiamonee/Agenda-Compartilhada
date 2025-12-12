@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 
-// Paleta de 5 cores para eventos
 const EVENT_COLORS = [
     { bg: 'bg-blue-50', hover: 'hover:bg-blue-100', border: 'border-blue-100', text: 'text-blue-700', badge: 'bg-blue-200 text-blue-800' },
     { bg: 'bg-purple-50', hover: 'hover:bg-purple-100', border: 'border-purple-100', text: 'text-purple-700', badge: 'bg-purple-200 text-purple-800' },
@@ -9,7 +8,6 @@ const EVENT_COLORS = [
     { bg: 'bg-pink-50', hover: 'hover:bg-pink-100', border: 'border-pink-100', text: 'text-pink-700', badge: 'bg-pink-200 text-pink-800' }
 ];
 
-// Função para obter cor baseada no ID do evento
 const getEventColor = (eventId) => {
     return EVENT_COLORS[eventId % EVENT_COLORS.length];
 };
@@ -44,12 +42,10 @@ export default function CalendarView({ events, onDateClick, onEventClick }) {
     const monthName = currentDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
 
     const days = [];
-    // Empty cells for days before the first day of the month
     for (let i = 0; i < firstDay; i++) {
         days.push(<div key={`empty-${i}`} className="h-24 bg-gray-50 border border-gray-100"></div>);
     }
 
-    // Cells for each day of the month
     for (let day = 1; day <= daysInMonth; day++) {
         const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
         const dateString = date.toISOString().split('T')[0];
@@ -62,15 +58,14 @@ export default function CalendarView({ events, onDateClick, onEventClick }) {
         const hasEvents = dayEvents.length > 0;
         const isToday = new Date().toDateString() === date.toDateString();
 
-        // Pega a cor do primeiro evento do dia para colorir o quadrado
         const dayColor = hasEvents ? getEventColor(dayEvents[0].id) : null;
 
         days.push(
             <div
                 key={day}
                 className={`h-24 border border-gray-100 p-2 relative transition-all cursor-pointer ${hasEvents
-                        ? `${dayColor.bg} ${dayColor.hover}`
-                        : 'hover:bg-gray-50'
+                    ? `${dayColor.bg} ${dayColor.hover}`
+                    : 'hover:bg-gray-50'
                     }`}
                 onClick={() => onDateClick(date)}
                 onMouseEnter={() => setHoveredDay(day)}
@@ -78,10 +73,10 @@ export default function CalendarView({ events, onDateClick, onEventClick }) {
             >
                 <div className="flex items-center justify-between">
                     <span className={`text-sm font-medium ${isToday
-                            ? 'bg-white text-gray-900 w-6 h-6 rounded-full flex items-center justify-center shadow-sm'
-                            : hasEvents
-                                ? `${dayColor.text} font-bold`
-                                : 'text-gray-700'
+                        ? 'bg-white text-gray-900 w-6 h-6 rounded-full flex items-center justify-center shadow-sm'
+                        : hasEvents
+                            ? `${dayColor.text} font-bold`
+                            : 'text-gray-700'
                         }`}>
                         {day}
                     </span>
@@ -92,7 +87,6 @@ export default function CalendarView({ events, onDateClick, onEventClick }) {
                     )}
                 </div>
 
-                {/* Tooltip com lista de eventos */}
                 {hoveredDay === day && hasEvents && (
                     <div className="absolute z-50 left-0 top-full mt-1 w-64 bg-white rounded-lg shadow-xl border border-gray-200 p-3 animate-fade-in">
                         <div className="text-xs font-semibold text-gray-500 mb-2">
@@ -131,7 +125,6 @@ export default function CalendarView({ events, onDateClick, onEventClick }) {
 
     return (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-gray-200">
                 <h2 className="text-lg font-bold text-gray-900 capitalize">
                     {monthName}
@@ -152,7 +145,6 @@ export default function CalendarView({ events, onDateClick, onEventClick }) {
                 </div>
             </div>
 
-            {/* Weekdays Header */}
             <div className="grid grid-cols-7 bg-gray-50 border-b border-gray-200">
                 {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(day => (
                     <div key={day} className="py-2 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">
@@ -161,7 +153,6 @@ export default function CalendarView({ events, onDateClick, onEventClick }) {
                 ))}
             </div>
 
-            {/* Days Grid */}
             <div className="grid grid-cols-7 bg-white">
                 {days}
             </div>

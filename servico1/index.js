@@ -1,5 +1,3 @@
-// Arquivo: servico-usuarios.js (Porta 3001)
-
 const express = require("express");
 const { Pool } = require("pg");
 const cors = require("cors");
@@ -7,14 +5,12 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
 
-// Configurações do ambiente: Use seus valores do .env aqui
 const JWT_SECRET = process.env.JWT_SECRET || "dois_poneis_saltitam_pelo_campo";
 const PORT = 3001;
 
-// Configuração do Banco de Dados
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false } // Configuração para Render/produção
+    ssl: { rejectUnauthorized: false }
 });
 
 const app = express();
@@ -23,9 +19,6 @@ app.use(express.json());
 
 const saltRounds = 10;
 
-// =======================
-// Testar conexão com o banco...
-// =======================
 (async () => {
     try {
         const result = await pool.query("SELECT NOW()");
@@ -36,9 +29,6 @@ const saltRounds = 10;
     }
 })();
 
-// =======================
-// Rota Auxiliar: Middleware de Verificação de Token
-// =======================
 const verifyToken = (req, res, next) => {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -57,9 +47,6 @@ const verifyToken = (req, res, next) => {
     }
 };
 
-// =======================
-// 🟢 Registro de Empresa e Dono (Transacional)
-// =======================
 app.post("/empresas", async (req, res) => {
     const { nome_empresa, email, senha } = req.body;
 
@@ -70,23 +57,21 @@ app.post("/empresas", async (req, res) => {
     let client;
     try {
         client = await pool.connect();
-        await client.query('BEGIN'); // Inicia transação
+        await client.query('BEGIN');
 
-        // 1. Cria a Empresa
         const empresaResult = await client.query(
             "INSERT INTO empresas (nome_empresa) VALUES ($1) RETURNING id",
             [nome_empresa]
         );
         const empresaId = empresaResult.rows[0].id;
 
-        // 2. Cria o Dono (is_owner = TRUE)
         const hashedPassword = await bcrypt.hash(senha, saltRounds);
         const userResult = await client.query(
             "INSERT INTO usuarios (username, password_hash, empresa_id, is_owner) VALUES ($1, $2, $3, TRUE) RETURNING id, username",
             [email, hashedPassword, empresaId]
         );
 
-        await client.query('COMMIT'); // Confirma transação
+        await client.query('COMMIT');
 
         const user = userResult.rows[0];
         const token = jwt.sign(
@@ -103,7 +88,7 @@ app.post("/empresas", async (req, res) => {
         });
 
     } catch (err) {
-        if (client) await client.query('ROLLBACK'); // Desfaz em caso de erro
+        if (client) await client.query('ROLLBACK');
         console.error("Erro ao registrar empresa/dono:", err);
         if (err.code === "23505") {
             return res.status(409).json({ error: "Este email ou nome de empresa já está cadastrado." });
@@ -114,13 +99,9 @@ app.post("/empresas", async (req, res) => {
     }
 });
 
-// =======================
-// Registro de Funcionário (APENAS Dono pode criar)
-// =======================
 app.post("/usuarios", verifyToken, async (req, res) => {
     const { email, senha, nome } = req.body;
 
-    // 🛑 Autorização: Apenas o Dono pode criar funcionários
     if (!req.isOwner) {
         return res.status(403).json({ error: "Apenas o dono da empresa pode criar contas de funcionário." });
     }
@@ -132,7 +113,6 @@ app.post("/usuarios", verifyToken, async (req, res) => {
     try {
         const hashedPassword = await bcrypt.hash(senha, saltRounds);
 
-        // Novo usuário pertence à mesma empresa do Dono logado (req.empresaId)
         const result = await pool.query(
             "INSERT INTO usuarios (username, password_hash, empresa_id, is_owner) VALUES ($1, $2, $3, FALSE) RETURNING id, username",
             [email, hashedPassword, req.empresaId]
@@ -154,20 +134,15 @@ app.post("/usuarios", verifyToken, async (req, res) => {
     }
 });
 
-// =======================
-// Atualizar funcionário (Apenas Dono)
-// =======================
 app.put("/usuarios/:id", verifyToken, async (req, res) => {
     const { id } = req.params;
     const { nome, email, senha } = req.body;
 
-    // Verificar se é o dono da empresa
     if (!req.isOwner) {
         return res.status(403).json({ error: "Apenas o dono pode editar funcionários." });
     }
 
     try {
-        // Verificar se o usuário pertence à mesma empresa
         const userCheck = await pool.query(
             "SELECT empresa_id, is_owner FROM usuarios WHERE id = $1",
             [id]
@@ -185,7 +160,6 @@ app.put("/usuarios/:id", verifyToken, async (req, res) => {
             return res.status(403).json({ error: "Não é possível editar o dono da empresa." });
         }
 
-        // Verificar se o novo email já existe (se foi alterado)
         if (email) {
             const emailCheck = await pool.query(
                 "SELECT id FROM usuarios WHERE username = $1 AND id != $2",
@@ -196,7 +170,6 @@ app.put("/usuarios/:id", verifyToken, async (req, res) => {
             }
         }
 
-        // Construir query de atualização dinamicamente
         const updates = [];
         const values = [];
         let paramCount = 1;
@@ -236,19 +209,14 @@ app.put("/usuarios/:id", verifyToken, async (req, res) => {
     }
 });
 
-// =======================
-// Deletar funcionário (Apenas Dono)
-// =======================
 app.delete("/usuarios/:id", verifyToken, async (req, res) => {
     const { id } = req.params;
 
-    // Verificar se é o dono da empresa
     if (!req.isOwner) {
         return res.status(403).json({ error: "Apenas o dono pode deletar funcionários." });
     }
 
     try {
-        // Verificar se o usuário pertence à mesma empresa
         const userCheck = await pool.query(
             "SELECT empresa_id, is_owner FROM usuarios WHERE id = $1",
             [id]
@@ -266,7 +234,6 @@ app.delete("/usuarios/:id", verifyToken, async (req, res) => {
             return res.status(403).json({ error: "Não é possível deletar o dono da empresa." });
         }
 
-        // Deletar o usuário
         await pool.query("DELETE FROM usuarios WHERE id = $1", [id]);
 
         res.json({ message: "Funcionário removido com sucesso!" });
@@ -276,9 +243,6 @@ app.delete("/usuarios/:id", verifyToken, async (req, res) => {
     }
 });
 
-// =======================
-// Login de usuário (Geração de JWT com Empresa ID)
-// =======================
 app.post("/login", async (req, res) => {
     const { email, senha } = req.body;
 
@@ -293,7 +257,6 @@ app.post("/login", async (req, res) => {
         const match = await bcrypt.compare(senha, user.password_hash);
 
         if (match) {
-            // ✅ Criação do Token JWT completo
             const token = jwt.sign(
                 {
                     userId: user.id,
@@ -324,12 +287,8 @@ app.post("/login", async (req, res) => {
     }
 });
 
-// =======================
-// Listar todos os usuários (da mesma empresa)
-// =======================
 app.get("/usuarios", verifyToken, async (req, res) => {
     try {
-        // 🛑 Filtra usuários APENAS da empresa do usuário logado
         const result = await pool.query(
             "SELECT id, username, is_owner, created_at FROM usuarios WHERE empresa_id = $1 ORDER BY username ASC",
             [req.empresaId]
@@ -347,13 +306,9 @@ app.get("/usuarios", verifyToken, async (req, res) => {
     }
 });
 
-// =======================
-// Buscar usuário por ID (Restrito à própria empresa) - USADO PELO SERVICO 2
-// =======================
 app.get("/usuarios/:id", verifyToken, async (req, res) => {
     const { id } = req.params;
     try {
-        // 🛑 Filtra pelo ID do usuário e pelo ID da empresa logada
         const result = await pool.query("SELECT id, username, empresa_id, is_owner FROM usuarios WHERE id = $1 AND empresa_id = $2", [id, req.empresaId]);
         if (result.rows.length === 0) {
             return res.status(404).json({ error: "Usuário não encontrado nesta empresa." });
@@ -366,9 +321,6 @@ app.get("/usuarios/:id", verifyToken, async (req, res) => {
     }
 });
 
-// =======================
-// Buscar detalhes da empresa
-// =======================
 app.get("/empresas/:id", verifyToken, async (req, res) => {
     const { id } = req.params;
 
@@ -393,13 +345,9 @@ app.get("/empresas/:id", verifyToken, async (req, res) => {
     }
 });
 
-// =======================
-// Listar usuários de uma empresa (Apenas membros da empresa)
-// =======================
 app.get("/empresas/:id/usuarios", verifyToken, async (req, res) => {
     const { id } = req.params;
 
-    // Verifica se o usuário está tentando acessar usuários da própria empresa
     if (parseInt(id) !== req.empresaId) {
         return res.status(403).json({ error: "Você só pode visualizar usuários da sua própria empresa." });
     }
@@ -422,9 +370,6 @@ app.get("/empresas/:id/usuarios", verifyToken, async (req, res) => {
     }
 });
 
-// =======================
-// Atualizar informações da empresa (Apenas Dono)
-// =======================
 app.put("/empresas/:id", verifyToken, async (req, res) => {
     const { id } = req.params;
     const { nome_empresa } = req.body;
@@ -461,9 +406,6 @@ app.put("/empresas/:id", verifyToken, async (req, res) => {
     }
 });
 
-// =======================
-// Deletar funcionário (Apenas Dono)
-// =======================
 app.delete("/usuarios/:id", verifyToken, async (req, res) => {
     const { id } = req.params;
 
@@ -498,8 +440,4 @@ app.delete("/usuarios/:id", verifyToken, async (req, res) => {
     }
 });
 
-
-// =======================
-// Inicializar servidor
-// =======================
 app.listen(PORT, () => console.log(`🚀 Servidor de Usuários rodando na porta ${PORT}`));

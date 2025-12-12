@@ -14,7 +14,6 @@ export default function ChatWidget({ user, currentEventId = null }) {
     const messagesEndRef = useRef(null);
     const chatContainerRef = useRef(null);
 
-    // Scroll para a última mensagem
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     };
@@ -23,11 +22,9 @@ export default function ChatWidget({ user, currentEventId = null }) {
         scrollToBottom();
     }, [messages]);
 
-    // Conectar ao Socket.io quando o componente montar
     useEffect(() => {
         if (!user) return;
 
-        // Buscar token do localStorage
         const token = localStorage.getItem("token");
         if (!token) {
             console.error("❌ Token não encontrado no localStorage");
@@ -57,7 +54,6 @@ export default function ChatWidget({ user, currentEventId = null }) {
         newSocket.on('reconnect', (attemptNumber) => {
             console.log('🔄 Reconectado ao chat após', attemptNumber, 'tentativa(s)');
             setConnected(true);
-            // Rejuntar ao chat do evento atual se existir
             if (currentEventId) {
                 newSocket.emit('join_event_chat', currentEventId);
             }
@@ -87,7 +83,6 @@ export default function ChatWidget({ user, currentEventId = null }) {
 
         newSocket.on('receive_message', (message) => {
             setMessages(prev => [...prev, message]);
-            // Se o chat estiver fechado, incrementa contador de não lidas
             if (!isOpen) {
                 setUnreadCount(prev => prev + 1);
             }
@@ -104,18 +99,14 @@ export default function ChatWidget({ user, currentEventId = null }) {
         };
     }, [user]);
 
-    // Entrar no chat do evento quando currentEventId mudar
     useEffect(() => {
         if (socket && connected && currentEventId) {
             socket.emit('join_event_chat', currentEventId);
-            // Limpar mensagens anteriores
             setMessages([]);
-            // Aqui você poderia carregar o histórico de mensagens via API REST
             loadChatHistory(currentEventId);
         }
     }, [socket, connected, currentEventId]);
 
-    // Carregar histórico de mensagens
     const loadChatHistory = async (eventId) => {
         try {
             const response = await fetch(`${EVENTS_API_URL}/eventos/${eventId}/chat/messages`, {
@@ -137,7 +128,6 @@ export default function ChatWidget({ user, currentEventId = null }) {
         }
     };
 
-    // Enviar mensagem
     const handleSendMessage = (e) => {
         e.preventDefault();
         if (!newMessage.trim() || !socket || !currentEventId) return;
@@ -146,27 +136,24 @@ export default function ChatWidget({ user, currentEventId = null }) {
         setNewMessage('');
     };
 
-    // Toggle do chat
     const toggleChat = () => {
         setIsOpen(!isOpen);
         if (!isOpen) {
-            setUnreadCount(0); // Zera contador ao abrir
+            setUnreadCount(0);
         }
     };
 
-    // Formatar timestamp
     const formatTime = (timestamp) => {
         const date = new Date(timestamp);
         return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     };
 
     if (!currentEventId) {
-        return null; // Não mostra o chat se não houver evento selecionado
+        return null;
     }
 
     return (
         <>
-            {/* Botão Flutuante */}
             <button
                 onClick={toggleChat}
                 className="fixed bottom-6 right-6 w-16 h-16 bg-primary-600 hover:bg-primary-700 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center z-50 group"
@@ -190,10 +177,8 @@ export default function ChatWidget({ user, currentEventId = null }) {
                 )}
             </button>
 
-            {/* Modal do Chat */}
             {isOpen && (
                 <div className="fixed bottom-24 right-6 w-96 h-[500px] bg-white rounded-2xl shadow-2xl flex flex-col z-50 animate-fade-in border border-gray-200">
-                    {/* Header */}
                     <div className="bg-primary-600 text-white p-4 rounded-t-2xl flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <div className={`w-2 h-2 rounded-full ${connected ? 'bg-green-400' : 'bg-red-400'}`} />
@@ -209,7 +194,6 @@ export default function ChatWidget({ user, currentEventId = null }) {
                         </button>
                     </div>
 
-                    {/* Mensagens */}
                     <div
                         ref={chatContainerRef}
                         className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50"
@@ -254,7 +238,6 @@ export default function ChatWidget({ user, currentEventId = null }) {
                         <div ref={messagesEndRef} />
                     </div>
 
-                    {/* Input de Mensagem */}
                     <form onSubmit={handleSendMessage} className="p-4 bg-white border-t border-gray-200 rounded-b-2xl">
                         <div className="flex gap-2">
                             <input
