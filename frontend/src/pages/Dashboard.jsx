@@ -15,6 +15,7 @@ import NotificationCard from "../components/NotificationCard";
 import Modal from "../components/Modal";
 import Calendar from "../components/Calendar";
 import CalendarView from "../components/CalendarView";
+import ChatWidget from "../components/ChatWidget";
 
 export default function Dashboard({ initialView = "list" }) {
   const navigate = useNavigate();
@@ -681,6 +682,7 @@ export default function Dashboard({ initialView = "list" }) {
                     onViewParticipants={handleViewParticipants}
                     onJoin={handleJoinEvent}
                     onLeave={handleLeaveEvent}
+                    onOpenChat={setSelectedEvent}
                   />
                 ))
               )
@@ -704,6 +706,7 @@ export default function Dashboard({ initialView = "list" }) {
                     onDelete={handleDeleteEvent}
                     onInvite={openInviteModal}
                     onViewParticipants={handleViewParticipants}
+                    onOpenChat={setSelectedEvent}
                   />
                 ))
               )
@@ -728,6 +731,7 @@ export default function Dashboard({ initialView = "list" }) {
                     onViewParticipants={handleViewParticipants}
                     onJoin={handleJoinEvent}
                     onLeave={handleLeaveEvent}
+                    onOpenChat={setSelectedEvent}
                   />
                 ))
               )
@@ -1013,6 +1017,9 @@ export default function Dashboard({ initialView = "list" }) {
           )}
         </div>
       </Modal>
+
+      {/* Chat Widget */}
+      <ChatWidget user={user} currentEventId={selectedEvent?.id} />
     </Layout >
   );
 }
