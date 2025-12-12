@@ -1,20 +1,24 @@
-// Arquivo: servico-eventos.js (Porta 3002)
 
 const express = require("express");
-const { Pool } = require("pg"); 
+const { Pool } = require("pg");
 const cors = require('cors');
 const axios = require("axios");
 const Opossum = require("opossum");
 const jwt = require("jsonwebtoken");
-const http = require('http'); // Para WebSockets
-const { Server } = require("socket.io"); // Para WebSockets
-const cron = require('node-cron'); // Para Limpeza Automática
+const http = require('http'); 
+const { Server } = require("socket.io"); 
+const cron = require('node-cron'); 
 require("dotenv").config();
+
+// Configurações do ambiente: Use seus valores do .env aqui
+const JWT_SECRET = process.env.JWT_SECRET || "dois_poneis_saltitam_pelo_campo";
+const servico1Url = process.env.SERVICO1_URL || "http://localhost:3001";
+const PORT = process.env.PORT || 3002;
 
 // Configuração do Banco de Dados
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+    ssl: { rejectUnauthorized: false } // Configuração para Render/produção
 });
 
 const app = express();
@@ -25,17 +29,13 @@ app.use(cors());
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: "*", // Ajuste para o seu front-end
+        origin: "*", 
         methods: ["GET", "POST", "PUT", "DELETE"]
     }
 });
 
-const servico1Url = process.env.SERVICO1_URL || "http://localhost:3001"; // URL do Serviço 1
-const PORT = process.env.PORT || 3002;
-const JWT_SECRET = process.env.JWT_SECRET || "dois_poneis_saltitam_pelo_campo";
-
 // =================================
-// Middleware de Autorização
+// Middleware de Autorização (JWT)
 // =================================
 const authorize = (req, res, next) => {
     const authHeader = req.headers.authorization;
@@ -48,7 +48,7 @@ const authorize = (req, res, next) => {
         const decoded = jwt.verify(token, JWT_SECRET);
         req.userId = decoded.userId;
         req.token = token;
-        req.empresaId = decoded.empresaId; // 👈 Lendo o ID da empresa do token
+        req.empresaId = decoded.empresaId;
         req.isOwner = decoded.isOwner;
         next();
     } catch (err) {
@@ -59,8 +59,6 @@ const authorize = (req, res, next) => {
 // =================================
 // 🚨 Circuit Breaker (Tolerância a Falhas)
 // =================================
-
-// 1. Função base para chamada do Serviço 1 (Usuários)
 async function callUserService(endpoint, token) {
     if (!servico1Url) {
         throw new Error("SERVICO1_URL não configurada.");
@@ -71,7 +69,6 @@ async function callUserService(endpoint, token) {
     return response.data;
 }
 
-// 2. Configuração do Circuit Breaker (Disjuntor)
 const circuit = new Opossum(callUserService, {
     timeout: 3000,
     errorThresholdPercentage: 50,
@@ -80,10 +77,8 @@ const circuit = new Opossum(callUserService, {
 circuit.on('open', () => console.warn('🛑 CIRCUIT BREAKER ABERTO: Serviço de Usuários está indisponível.'));
 circuit.on('close', () => console.log('✅ CIRCUIT BREAKER FECHADO: Serviço de Usuários se recuperou.'));
 
-// Funções de Coordenação com Circuit Breaker
 async function getUserDetails(userId, token) {
     try {
-        // Usa o Circuit Breaker
         return await circuit.fire(`/usuarios/${userId}`, token);
     } catch (err) {
         if (err.name === 'CircuitBreakerOpenError') {
@@ -104,33 +99,26 @@ async function getUserDetails(userId, token) {
     }
 }
 
-// Helper para criar notificação (deduplicação)
+// Helper para criar notificação
 async function createNotification(userId, message, type, eventId) {
     try {
+        // Insere notificação
         await pool.query(
-            `INSERT INTO notificacoes (user_id, message, type, event_id) VALUES ($1, $2, $3, $4)
-             ON CONFLICT (user_id, event_id, type) DO UPDATE SET message = $2, created_at = NOW()`,
+            `INSERT INTO notificacoes (user_id, message, type, event_id) VALUES ($1, $2, $3, $4)`,
             [userId, message, type, eventId]
         );
-         // Se houver um sistema de notificação em tempo real (como o próprio Socket.IO), você o chamaria aqui.
-         io.to(`user_${userId}`).emit('new_notification', message);
+        // Tenta enviar notificação em tempo real (não crítica)
+        io.to(`user_${userId}`).emit('new_notification', message); 
 
     } catch (err) {
-        // Ignorar erros de banco (como notif_pkey) para não interromper a lógica principal
-        if (err.code === '42P01') { 
-            console.error("Tabela de Notificações não existe. Ignorando notificação.");
-        } else {
-             console.error("Erro ao criar notificação:", err);
-        }
+        console.error("Erro ao criar notificação:", err);
     }
 }
-
 
 // ===============================================
 // 💬 Lógica do Chat (Socket.IO)
 // ===============================================
 
-// 1. Middleware de autenticação do Socket.IO (leitura básica do token)
 io.use((socket, next) => {
     const token = socket.handshake.auth.token;
     if (!token) {
@@ -140,8 +128,7 @@ io.use((socket, next) => {
         const decoded = jwt.verify(token, JWT_SECRET);
         socket.userId = decoded.userId;
         socket.empresaId = decoded.empresaId;
-        // Adiciona o usuário a uma sala privada para notificações
-        socket.join(`user_${decoded.userId}`);
+        socket.join(`user_${decoded.userId}`); // Sala de notificação privada
         next();
     } catch (err) {
         next(new Error("Token inválido."));
@@ -151,7 +138,6 @@ io.use((socket, next) => {
 io.on('connection', (socket) => {
     console.log(`Usuário ${socket.userId} conectado via Socket.ID: ${socket.id}`);
 
-    // 2. O usuário entra em uma "sala" específica do evento
     socket.on('join_event_chat', async (eventId) => {
         try {
             const eventCheck = await pool.query(
@@ -163,7 +149,6 @@ io.on('connection', (socket) => {
                 return socket.emit('chat_error', 'Evento não encontrado ou acesso negado.');
             }
             
-            // Verifica se o usuário é participante
             const participationCheck = await pool.query(
                 "SELECT status FROM participacoes WHERE event_id = $1 AND user_id = $2",
                 [eventId, socket.userId]
@@ -173,7 +158,6 @@ io.on('connection', (socket) => {
                  return socket.emit('chat_error', 'Você não está participando deste evento.');
             }
 
-            // Entra na sala (room) do Socket.IO
             socket.join(`event_${eventId}`);
             socket.eventId = eventId;
             socket.emit('joined', `Juntou-se ao chat do evento ${eventId}`);
@@ -184,7 +168,6 @@ io.on('connection', (socket) => {
         }
     });
 
-    // 3. Receber e retransmitir mensagens
     socket.on('send_message', async (message) => {
         const { text } = message;
         if (!socket.eventId || !text) return;
@@ -196,9 +179,10 @@ io.on('connection', (socket) => {
                 [socket.eventId, socket.userId, text]
             );
 
+            // Usa o token do handshake para autenticar no Serviço 1 (Usuários)
             const userDetails = await getUserDetails(socket.userId, socket.handshake.auth.token);
             
-            // Broadcast (retransmissão) da mensagem para todos na sala do evento
+            // Broadcast da mensagem para todos na sala do evento
             io.to(`event_${socket.eventId}`).emit('receive_message', {
                 text: text,
                 senderId: socket.userId,
@@ -219,14 +203,11 @@ io.on('connection', (socket) => {
 
 // ===================================================
 // ⏰ Lógica de Limpeza Automática (Cron Job)
-// Requisito: Excluir eventos que passaram há mais de 1 mês
+// Deleta eventos que passaram há mais de 1 mês
 // ===================================================
-
-// Executa todos os dias à meia-noite (00:00)
 cron.schedule('0 0 * * *', async () => {
     console.log('🧹 Executando tarefa de limpeza de eventos antigos...');
     const oneMonthAgo = new Date();
-    // Subtrai 30 dias da data atual (aproximação de 1 mês)
     oneMonthAgo.setDate(oneMonthAgo.getDate() - 30); 
     
     const deleteQuery = `
@@ -267,7 +248,7 @@ app.get("/eventos/:id/chat/messages", authorize, async (req, res) => {
             [id]
         );
 
-        // Busca detalhes do remetente para todas as mensagens
+        // Busca detalhes do remetente
         const messagesWithDetails = await Promise.all(
             messagesResult.rows.map(async (msg) => {
                 try {
@@ -312,7 +293,7 @@ app.post("/eventos", authorize, async (req, res) => {
             [title, description, start_time, end_time, organizer_id, is_public !== false, req.empresaId]
         );
         
-        // Insere o organizador como participante aceito
+        // Insere o organizador como participante aceito por padrão
         await pool.query(
             "INSERT INTO participacoes (event_id, user_id, status) VALUES ($1, $2, 'accepted')",
             [result.rows[0].id, organizer_id]
@@ -326,8 +307,6 @@ app.post("/eventos", authorize, async (req, res) => {
     }
 });
 
-// (Outras rotas do Serviço 2: /eventos, /participations/:id, /eventos/:id/convidar, etc., seguem sem alteração)
-
 // ==================================================================
 // 2. Rota POST /eventos/:evento_id/convidar (Envio de Convites)
 // ==================================================================
@@ -340,7 +319,6 @@ app.post("/eventos/:evento_id/convidar", authorize, async (req, res) => {
     }
 
     try {
-        // Autorização: Verifica se o usuário logado é o organizador e se o evento pertence à empresa
         const eventResult = await pool.query("SELECT organizer_id, empresa_id, title FROM eventos WHERE id = $1", [evento_id]);
         if (eventResult.rows.length === 0 || eventResult.rows[0].empresa_id !== req.empresaId) {
             return res.status(404).json({ error: "Evento não encontrado nesta empresa." });
@@ -349,10 +327,9 @@ app.post("/eventos/:evento_id/convidar", authorize, async (req, res) => {
             return res.status(403).json({ error: "Apenas o organizador pode convidar pessoas." });
         }
 
-        // Coordenação: Verifica a existência de TODOS os usuários
         await Promise.all(user_ids.map(id => getUserDetails(id, req.token)));
 
-        // Insere convites (status='invited')
+        // Cria a sintaxe do SQL para INSERT ou UPDATE (ON CONFLICT)
         const values = user_ids.map((id, index) => `($${index * 2 + 1}, $${index * 2 + 2}, 'invited')`).join(',');
         const params = user_ids.flatMap(id => [evento_id, id]);
 
@@ -395,7 +372,7 @@ app.put("/participations/:id", authorize, async (req, res) => {
 
     try {
         const participationCheck = await pool.query(
-            `SELECT p.*, e.empresa_id, e.title 
+            `SELECT p.*, e.empresa_id 
              FROM participacoes p 
              JOIN eventos e ON p.event_id = e.id 
              WHERE p.id = $1`,
@@ -412,7 +389,6 @@ app.put("/participations/:id", authorize, async (req, res) => {
             return res.status(403).json({ error: "Acesso negado: Você só pode atualizar suas próprias participações na sua empresa." });
         }
 
-        // Atualiza o status
         const result = await pool.query(
             "UPDATE participacoes SET status = $1 WHERE id = $2 RETURNING *",
             [status, id]
@@ -436,7 +412,6 @@ app.get("/eventos", authorize, async (req, res) => {
     try {
         const result = await pool.query("SELECT * FROM eventos WHERE empresa_id = $1 ORDER BY start_time ASC", [req.empresaId]);
 
-        // Buscar email do organizador para cada evento (USANDO CIRCUIT BREAKER)
         const eventsWithOrganizerEmail = await Promise.all(
             result.rows.map(async (event) => {
                 try {
@@ -446,7 +421,6 @@ app.get("/eventos", authorize, async (req, res) => {
                         organizer_email: userDetails.email
                     };
                 } catch (err) {
-                    // Retorna sem email se o Serviço 1 falhar ou o CB estiver aberto
                     return {
                         ...event,
                         organizer_email: "Email não disponível (Serviço de Usuários indisponível)"
@@ -462,16 +436,65 @@ app.get("/eventos", authorize, async (req, res) => {
     }
 });
 
-// ... (todas as outras rotas do serviço 2 continuam abaixo)
+// ====================================================================
+// 5. Rota GET /usuarios/:user_id/convites (Listar Convites de um Usuário)
+// ====================================================================
+app.get("/usuarios/:user_id/convites", authorize, async (req, res) => {
+    const { user_id } = req.params;
+
+    if (parseInt(user_id) !== req.userId && !req.isOwner) {
+        return res.status(403).json({ error: "Acesso negado." });
+    }
+
+    try {
+        const result = await pool.query(
+            `SELECT p.id AS participation_id, p.event_id, p.user_id, p.status, 
+                    e.title, e.description, e.start_time, e.end_time, e.organizer_id 
+             FROM participacoes p
+             JOIN eventos e ON p.event_id = e.id
+             WHERE p.user_id = $1 AND p.status = 'invited' AND e.empresa_id = $2`,
+            [user_id, req.empresaId]
+        );
+        res.json(result.rows);
+    } catch (err) {
+        console.error("Erro ao listar convites:", err);
+        res.status(500).json({ error: "Erro interno ao listar convites." });
+    }
+});
 
 // ====================================================================
-// 7. Rota GET /eventos/:id (Detalhes de um Evento Específico) - ISOLADA
+// 6. Rota GET /usuarios/:user_id/aceitos (Listar Eventos Aceitos de um Usuário)
+// ====================================================================
+app.get("/usuarios/:user_id/aceitos", authorize, async (req, res) => {
+    const { user_id } = req.params;
+
+    if (parseInt(user_id) !== req.userId && !req.isOwner) {
+        return res.status(403).json({ error: "Acesso negado." });
+    }
+
+    try {
+        const result = await pool.query(
+            `SELECT p.id AS participation_id, p.event_id, p.user_id, p.status, 
+                    e.id, e.title, e.description, e.start_time, e.end_time, e.organizer_id 
+             FROM participacoes p
+             JOIN eventos e ON p.event_id = e.id
+             WHERE p.user_id = $1 AND p.status = 'accepted' AND e.empresa_id = $2`,
+            [user_id, req.empresaId]
+        );
+        res.json(result.rows);
+    } catch (err) {
+        console.error("Erro ao listar eventos aceitos:", err);
+        res.status(500).json({ error: "Erro interno ao listar eventos aceitos." });
+    }
+});
+
+// ====================================================================
+// 7. Rota GET /eventos/:id (Detalhes de um Evento Específico)
 // ====================================================================
 app.get("/eventos/:id", authorize, async (req, res) => {
     const { id } = req.params;
 
     try {
-        // 🛑 Filtra o evento pelo ID e pela empresa do usuário logado
         const result = await pool.query(
             "SELECT * FROM eventos WHERE id = $1 AND empresa_id = $2",
             [id, req.empresaId]
@@ -489,14 +512,13 @@ app.get("/eventos/:id", authorize, async (req, res) => {
 });
 
 // ====================================================================
-// 8. Rota PUT /eventos/:id (Atualizar Evento) - ISOLADA
+// 8. Rota PUT /eventos/:id (Atualizar Evento) 
 // ====================================================================
 app.put("/eventos/:id", authorize, async (req, res) => {
     const { id } = req.params;
     const { title, description, start_time, end_time, is_public } = req.body;
 
     try {
-        // Autorização: Verifica se o evento existe, pertence à empresa e se o usuário é o organizador
         const eventCheck = await pool.query(
             "SELECT organizer_id, empresa_id FROM eventos WHERE id = $1",
             [id]
@@ -510,7 +532,6 @@ app.put("/eventos/:id", authorize, async (req, res) => {
             return res.status(403).json({ error: "Apenas o organizador pode atualizar este evento." });
         }
 
-        // Atualiza apenas os campos fornecidos
         const updates = [];
         const values = [];
         let paramCount = 1;
@@ -566,13 +587,12 @@ app.put("/eventos/:id", authorize, async (req, res) => {
 });
 
 // ====================================================================
-// 9. Rota DELETE /eventos/:id (Deletar Evento) - ISOLADA
+// 9. Rota DELETE /eventos/:id (Deletar Evento) 
 // ====================================================================
 app.delete("/eventos/:id", authorize, async (req, res) => {
     const { id } = req.params;
 
     try {
-        // Autorização: Verifica se o evento existe, pertence à empresa e se o usuário é o organizador
         const eventCheck = await pool.query(
             "SELECT organizer_id, empresa_id, title FROM eventos WHERE id = $1",
             [id]
@@ -586,11 +606,10 @@ app.delete("/eventos/:id", authorize, async (req, res) => {
             return res.status(403).json({ error: "Apenas o organizador pode deletar este evento." });
         }
 
-        // Buscar participantes antes de deletar
         const participants = await pool.query("SELECT user_id FROM participacoes WHERE event_id = $1", [id]);
         const eventTitle = eventCheck.rows[0].title;
 
-        // Deleta o evento (CASCADE vai deletar participações, mensagens de chat e notificações)
+        // Deleta o evento (CASCADE)
         await pool.query("DELETE FROM eventos WHERE id = $1", [id]);
 
         // Notificar participantes sobre cancelamento
@@ -613,13 +632,12 @@ app.delete("/eventos/:id", authorize, async (req, res) => {
 });
 
 // ====================================================================
-// 10. Rota GET /eventos/:id/participantes (Listar Participantes) - ISOLADA
+// 10. Rota GET /eventos/:id/participantes (Listar Participantes) 
 // ====================================================================
 app.get("/eventos/:id/participantes", authorize, async (req, res) => {
     const { id } = req.params;
 
     try {
-        // Verifica se o evento existe e pertence à empresa do usuário
         const eventCheck = await pool.query(
             "SELECT id, empresa_id FROM eventos WHERE id = $1",
             [id]
@@ -629,7 +647,6 @@ app.get("/eventos/:id/participantes", authorize, async (req, res) => {
             return res.status(404).json({ error: "Evento não encontrado nesta empresa." });
         }
 
-        // Lista todos os participantes do evento
         const participantsResult = await pool.query(
             `SELECT 
                 p.id AS participation_id,
@@ -642,7 +659,6 @@ app.get("/eventos/:id/participantes", authorize, async (req, res) => {
             [id]
         );
 
-        // Busca detalhes dos usuários do Serviço 1
         const participantsWithDetails = await Promise.all(
             participantsResult.rows.map(async (participant) => {
                 try {
@@ -650,10 +666,9 @@ app.get("/eventos/:id/participantes", authorize, async (req, res) => {
                     return {
                         ...participant,
                         user_email: userDetails.email,
-                        is_owner: userDetails.is_owner // Adicionado para contexto
+                        is_owner: userDetails.is_owner 
                     };
                 } catch (err) {
-                    // Se não conseguir buscar detalhes, retorna sem email
                     return {
                         ...participant,
                         user_email: "Usuário não encontrado"
@@ -670,6 +685,103 @@ app.get("/eventos/:id/participantes", authorize, async (req, res) => {
     }
 });
 
+// ====================================================================
+// 11. Rota DELETE /eventos/:evento_id/participantes/:user_id (Remover Participante) - ISOLADA
+// ====================================================================
+app.delete("/eventos/:evento_id/participantes/:user_id", authorize, async (req, res) => {
+    const { evento_id, user_id } = req.params;
+
+    try {
+        const eventCheck = await pool.query(
+            "SELECT organizer_id, empresa_id FROM eventos WHERE id = $1",
+            [evento_id]
+        );
+
+        if (eventCheck.rows.length === 0 || eventCheck.rows[0].empresa_id !== req.empresaId) {
+            return res.status(404).json({ error: "Evento não encontrado nesta empresa." });
+        }
+
+        if (eventCheck.rows[0].organizer_id !== req.userId) {
+            return res.status(403).json({ error: "Apenas o organizador pode remover participantes." });
+        }
+
+        const result = await pool.query(
+            "DELETE FROM participacoes WHERE event_id = $1 AND user_id = $2 RETURNING *",
+            [evento_id, user_id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: "Participação não encontrada." });
+        }
+
+        res.json({ message: "Participante removido com sucesso." });
+
+    } catch (err) {
+        console.error("Erro ao remover participante:", err);
+        res.status(500).json({ error: "Erro interno ao remover participante." });
+    }
+});
+
+// ====================================================================
+// 12. Rota POST /eventos/:id/participar (Participar de um Evento)
+// ====================================================================
+app.post("/eventos/:id/participar", authorize, async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        // Verifica se o evento existe e pertence à empresa
+        const eventCheck = await pool.query("SELECT empresa_id FROM eventos WHERE id = $1", [id]);
+        if (eventCheck.rows.length === 0 || eventCheck.rows[0].empresa_id !== req.empresaId) {
+            return res.status(404).json({ error: "Evento não encontrado nesta empresa." });
+        }
+
+        // Insere ou atualiza participação para 'accepted'
+        const result = await pool.query(
+            `INSERT INTO participacoes (event_id, user_id, status) 
+             VALUES ($1, $2, 'accepted') 
+             ON CONFLICT (event_id, user_id) DO UPDATE SET status = 'accepted' 
+             RETURNING *`,
+            [id, req.userId]
+        );
+
+        res.json({ message: "Participação confirmada!", participation: result.rows[0] });
+
+    } catch (err) {
+        console.error("Erro ao participar do evento:", err);
+        res.status(500).json({ error: "Erro interno ao participar do evento." });
+    }
+});
+
+// ====================================================================
+// 13. Rota DELETE /eventos/:id/sair (Sair de um Evento)
+// ====================================================================
+app.delete("/eventos/:id/sair", authorize, async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        // Verifica se o evento existe e pertence à empresa
+        const eventCheck = await pool.query("SELECT empresa_id FROM eventos WHERE id = $1", [id]);
+        if (eventCheck.rows.length === 0 || eventCheck.rows[0].empresa_id !== req.empresaId) {
+            return res.status(404).json({ error: "Evento não encontrado nesta empresa." });
+        }
+
+        // Remove a participação do usuário logado
+        const result = await pool.query(
+            "DELETE FROM participacoes WHERE event_id = $1 AND user_id = $2 RETURNING *",
+            [id, req.userId]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: "Você não está participando deste evento." });
+        }
+
+        res.json({ message: "Você saiu do evento." });
+
+    } catch (err) {
+        console.error("Erro ao sair do evento:", err);
+        res.status(500).json({ error: "Erro interno ao sair do evento." });
+    }
+});
 
 // ====================================================================
 // 14. Rota GET /notificacoes (Listar Notificações)
@@ -683,7 +795,6 @@ app.get("/notificacoes", authorize, async (req, res) => {
         res.json(result.rows);
     } catch (err) {
         console.error("Erro ao listar notificações:", err);
-        // Se a tabela não existir, retorna array vazio para não quebrar o front
         if (err.code === '42P01') {
             return res.json([]);
         }
@@ -697,7 +808,6 @@ app.get("/notificacoes", authorize, async (req, res) => {
 app.put("/notificacoes/:id/read", authorize, async (req, res) => {
     const { id } = req.params;
     try {
-        // Deleta a notificação após ser visualizada
         await pool.query(
             "DELETE FROM notificacoes WHERE id = $1 AND user_id = $2",
             [id, req.userId]

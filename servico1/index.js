@@ -7,10 +7,14 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
 
+// Configurações do ambiente: Use seus valores do .env aqui
+const JWT_SECRET = process.env.JWT_SECRET || "dois_poneis_saltitam_pelo_campo";
+const PORT = 3001; 
+
 // Configuração do Banco de Dados
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+    ssl: { rejectUnauthorized: false } // Configuração para Render/produção
 });
 
 const app = express();
@@ -18,8 +22,6 @@ app.use(cors());
 app.use(express.json());
 
 const saltRounds = 10;
-const PORT = process.env.PORT || 3001;
-const JWT_SECRET = process.env.JWT_SECRET || "dois_poneis_saltitam_pelo_campo";
 
 // =======================
 // Testar conexão com o banco...
@@ -56,7 +58,7 @@ const verifyToken = (req, res, next) => {
 };
 
 // =======================
-// 🟢 NOVO: Registro de Empresa e Dono (Transacional)
+// 🟢 Registro de Empresa e Dono (Transacional)
 // =======================
 app.post("/empresas", async (req, res) => {
     const { nome_empresa, email, senha } = req.body;
@@ -232,7 +234,6 @@ app.get("/usuarios/:id", verifyToken, async (req, res) => {
         // 🛑 Filtra pelo ID do usuário e pelo ID da empresa logada
         const result = await pool.query("SELECT id, username, empresa_id, is_owner FROM usuarios WHERE id = $1 AND empresa_id = $2", [id, req.empresaId]);
         if (result.rows.length === 0) {
-            // Se o usuário não existe ou pertence a outra empresa
             return res.status(404).json({ error: "Usuário não encontrado nesta empresa." });
         }
         const user = result.rows[0];
@@ -249,7 +250,6 @@ app.get("/usuarios/:id", verifyToken, async (req, res) => {
 app.get("/empresas/:id", verifyToken, async (req, res) => {
     const { id } = req.params;
 
-    // Verifica se o usuário logado pertence à empresa solicitada
     if (parseInt(id) !== req.empresaId) {
         return res.status(403).json({ error: "Você só pode visualizar detalhes da sua própria empresa." });
     }
@@ -268,6 +268,82 @@ app.get("/empresas/:id", verifyToken, async (req, res) => {
     } catch (err) {
         console.error("Erro ao buscar empresa:", err);
         res.status(500).json({ error: "Erro ao buscar empresa." });
+    }
+});
+
+// =======================
+// Atualizar informações da empresa (Apenas Dono)
+// =======================
+app.put("/empresas/:id", verifyToken, async (req, res) => {
+    const { id } = req.params;
+    const { nome_empresa } = req.body;
+
+    if (parseInt(id) !== req.empresaId) {
+        return res.status(403).json({ error: "Você só pode atualizar sua própria empresa." });
+    }
+
+    if (!req.isOwner) {
+        return res.status(403).json({ error: "Apenas o dono da empresa pode atualizar informações." });
+    }
+
+    if (!nome_empresa) {
+        return res.status(400).json({ error: "Nome da empresa é obrigatório." });
+    }
+
+    try {
+        const result = await pool.query(
+            "UPDATE empresas SET nome_empresa = $1 WHERE id = $2 RETURNING *",
+            [nome_empresa, id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: "Empresa não encontrada." });
+        }
+
+        res.json({ message: "Empresa atualizada com sucesso.", empresa: result.rows[0] });
+    } catch (err) {
+        console.error("Erro ao atualizar empresa:", err);
+        if (err.code === "23505") {
+            return res.status(409).json({ error: "Este nome de empresa já está em uso." });
+        }
+        res.status(500).json({ error: "Erro ao atualizar empresa." });
+    }
+});
+
+// =======================
+// Deletar funcionário (Apenas Dono)
+// =======================
+app.delete("/usuarios/:id", verifyToken, async (req, res) => {
+    const { id } = req.params;
+
+    if (!req.isOwner) {
+        return res.status(403).json({ error: "Apenas o dono da empresa pode deletar funcionários." });
+    }
+
+    try {
+        const userCheck = await pool.query(
+            "SELECT id, empresa_id, is_owner FROM usuarios WHERE id = $1",
+            [id]
+        );
+
+        if (userCheck.rows.length === 0) {
+            return res.status(404).json({ error: "Usuário não encontrado." });
+        }
+
+        if (userCheck.rows[0].empresa_id !== req.empresaId) {
+            return res.status(403).json({ error: "Você só pode deletar usuários da sua própria empresa." });
+        }
+
+        if (userCheck.rows[0].is_owner) {
+            return res.status(403).json({ error: "Não é possível deletar o dono da empresa." });
+        }
+
+        await pool.query("DELETE FROM usuarios WHERE id = $1", [id]);
+
+        res.json({ message: "Funcionário deletado com sucesso." });
+    } catch (err) {
+        console.error("Erro ao deletar funcionário:", err);
+        res.status(500).json({ error: "Erro ao deletar funcionário." });
     }
 });
 
