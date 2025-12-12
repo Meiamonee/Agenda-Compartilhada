@@ -25,11 +25,18 @@ export default function ChatWidget({ user, currentEventId = null }) {
 
     // Conectar ao Socket.io quando o componente montar
     useEffect(() => {
-        if (!user?.token) return;
+        if (!user) return;
+
+        // Buscar token do localStorage
+        const token = localStorage.getItem("token");
+        if (!token) {
+            console.error("❌ Token não encontrado no localStorage");
+            return;
+        }
 
         const newSocket = io(EVENTS_API_URL, {
             auth: {
-                token: user.token
+                token: token
             },
             reconnection: true,
             reconnectionDelay: 1000,
@@ -95,7 +102,7 @@ export default function ChatWidget({ user, currentEventId = null }) {
         return () => {
             newSocket.close();
         };
-    }, [user?.token]);
+    }, [user]);
 
     // Entrar no chat do evento quando currentEventId mudar
     useEffect(() => {
@@ -113,7 +120,7 @@ export default function ChatWidget({ user, currentEventId = null }) {
         try {
             const response = await fetch(`${EVENTS_API_URL}/eventos/${eventId}/chat/messages`, {
                 headers: {
-                    'Authorization': `Bearer ${user.token}`
+                    'Authorization': `Bearer ${localStorage.getItem("token")}`
                 }
             });
             if (response.ok) {
