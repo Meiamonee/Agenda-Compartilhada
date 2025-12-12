@@ -9,7 +9,7 @@ require("dotenv").config();
 
 // Configurações do ambiente: Use seus valores do .env aqui
 const JWT_SECRET = process.env.JWT_SECRET || "dois_poneis_saltitam_pelo_campo";
-const PORT = 3001; 
+const PORT = 3001;
 
 // Configuração do Banco de Dados
 const pool = new Pool({
@@ -268,6 +268,35 @@ app.get("/empresas/:id", verifyToken, async (req, res) => {
     } catch (err) {
         console.error("Erro ao buscar empresa:", err);
         res.status(500).json({ error: "Erro ao buscar empresa." });
+    }
+});
+
+// =======================
+// Listar usuários de uma empresa (Apenas membros da empresa)
+// =======================
+app.get("/empresas/:id/usuarios", verifyToken, async (req, res) => {
+    const { id } = req.params;
+
+    // Verifica se o usuário está tentando acessar usuários da própria empresa
+    if (parseInt(id) !== req.empresaId) {
+        return res.status(403).json({ error: "Você só pode visualizar usuários da sua própria empresa." });
+    }
+
+    try {
+        const result = await pool.query(
+            "SELECT id, username, is_owner, created_at FROM usuarios WHERE empresa_id = $1 ORDER BY is_owner DESC, username ASC",
+            [id]
+        );
+
+        res.json(result.rows.map(user => ({
+            id: user.id,
+            email: user.username,
+            is_owner: user.is_owner,
+            created_at: user.created_at
+        })));
+    } catch (err) {
+        console.error("Erro ao listar usuários da empresa:", err);
+        res.status(500).json({ error: "Erro ao listar usuários da empresa." });
     }
 });
 
